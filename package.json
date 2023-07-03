@@ -1,0 +1,22 @@
+{
+  "name": "hive-swap-calculator",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@preact/compat": "^17.1.2",
+    "bignumber.js": "^9.1.1",
+    "bulma": "^0.9.4",
+    "preact": "^10.11.3",
+    "sass": "^1.63.6"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.0.1",
+    "vite": "^4.0.0"
+  }
+}
