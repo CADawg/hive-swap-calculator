@@ -26,7 +26,7 @@ export default async function FetchMarketSells(symbol, priceLessThan) {
 }
 
 async function GetSellOrders(symbol, priceLessThan, offset) {
-    return await fetch('https://us.engine.rishipanthee.com/contracts', {
+    return await fetch('https://engine.rishipanthee.com/contracts', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
