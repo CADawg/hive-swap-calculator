@@ -2,17 +2,13 @@ package main
 
 import (
 	"fmt"
-	"image/png"
-	"net/http"
-	"strings"
 
-	"github.com/fabiokaelin/terminalimage"
 	"github.com/shopspring/decimal"
 )
 
 func PrettyPrintTokenData(data []TokenData) {
 	for _, token := range data {
-		LoadAndShowCryptoIcon(token)
+		//LoadAndShowCryptoIcon(token)
 		fmt.Println("Token: ", token.Symbol)
 		fmt.Println("Price: ", token.USDPrice)
 		fmt.Println("Network Fee: ", token.NetworkPercentageFee, "%")
@@ -52,9 +48,7 @@ func PrettyPrintPriceDifference(token TokenData, order EngineMarketOrder) string
 	}
 }
 
-// todo: need to make it so that the price = price / quantity as price is the price of the entire order and need to filter it on this side as engine doesn't give us the price per x
-
-func LoadAndShowCryptoIcon(token TokenData) {
+/*func LoadAndShowCryptoIcon(token TokenData) {
 	// fetch crypto icon from api https://cryptoicons.org/api/:style/:currency/:size/:color
 
 	// fetch the icon
@@ -96,4 +90,4 @@ func LoadAndShowCryptoIcon(token TokenData) {
 	for _, line := range arr {
 		fmt.Println(line)
 	}
-}
+}*/

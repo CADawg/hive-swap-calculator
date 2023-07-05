@@ -1,9 +1,10 @@
 package main
 
 import (
-	"encoding/json"
 	"io"
 	"net/http"
+
+	"github.com/goccy/go-json"
 )
 
 func GetJSON[T any](url string) (*T, error) {

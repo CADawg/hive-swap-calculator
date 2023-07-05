@@ -2,9 +2,10 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"net/http"
+
+	"github.com/goccy/go-json"
 )
 
 const NODE = "https://engine.rishipanthee.com"
@@ -75,4 +76,28 @@ func CallContract[T any](contract string, table string, query json.RawMessage, o
 	}
 
 	return outputResponse, nil
+}
+
+func CallContractUntilEmpty[T any](contract string, table string, query json.RawMessage) ([]T, error) {
+	var allResults []T
+
+	results, err := CallContract[T](contract, table, query, 0)
+
+	if err != nil {
+		return nil, err
+	}
+
+	allResults = append(allResults, results...)
+
+	for len(results) == 1000 {
+		results, err = CallContract[T](contract, table, query, len(allResults))
+
+		if err != nil {
+			return nil, err
+		}
+
+		allResults = append(allResults, results...)
+	}
+
+	return allResults, nil
 }

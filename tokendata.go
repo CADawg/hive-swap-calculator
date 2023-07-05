@@ -44,6 +44,10 @@ func AddSymbolInformation(data TokenData, name string) TokenData {
 		data.Symbol = "USDT"
 	case "wax":
 		data.Symbol = "WAX"
+	case "steem":
+		data.Symbol = "STEEM"
+	case "hive_dollar":
+		data.Symbol = "HBD"
 	}
 
 	data.SwapSymbol = "SWAP." + data.Symbol
