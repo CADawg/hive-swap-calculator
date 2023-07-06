@@ -21,14 +21,19 @@ func main() {
 
 	go func() {
 		for {
-			/*TokensLock.RLock()
-			if LenTokensMarketOrders(Tokens) > 5 {
-				TokensLock.RUnlock()
-				continue // for testing if we have more than 5 tokens with market orders then don't update
-			}
-			TokensLock.RUnlock()*/
+			v, err2 := FetchBlockchainHiveHBDRate()
+
+			fmt.Println("Fetched blockchain hive/hbd rate", v)
 
 			data, err := LoadPriceAndSymbolData()
+
+			if err2 == nil {
+				for i := range data {
+					if data[i].Symbol == "HBD" {
+						data[i].HIVEPrice = v // update the hive/hbd rate using our blockchain data (this is more accurate than coingecko for most people and has no delay)
+					}
+				}
+			}
 
 			if err == nil {
 				fmt.Println("Loaded price and symbol data")
