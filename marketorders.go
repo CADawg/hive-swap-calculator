@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"github.com/shopspring/decimal"
 )
 
@@ -36,13 +37,19 @@ func GetAllSwapBuyOrders() error {
 
 func GetUnderpricedMarketSellOrders(tokens []TokenData) ([]TokenData, error) {
 	// Reload all the sell orders for SWAP. tokens
-	GetAllSwapSellOrders()
+	_ = GetAllSwapSellOrders()
 
 	for i, token := range tokens {
 		// this should be the hive price we're willing to pay minus the network fee
 		hivePrice := token.HIVEPrice.Mul(decimal.NewFromInt(1).Sub(token.NetworkPercentageFee.Div(decimal.NewFromInt(100))))
 
-		tokens[i].SellOrders = GetSellOrdersForToken(token, hivePrice)
+		orders := GetSellOrdersForToken(token, hivePrice)
+
+		for j := range orders {
+			orders[j].ProfitPercentage = token.HIVEPrice.Sub(orders[j].Price).Div(token.HIVEPrice).Mul(decimal.NewFromInt(100)).Abs()
+		}
+
+		tokens[i].SellOrders = orders
 	}
 
 	return tokens, nil
@@ -62,14 +69,21 @@ func GetSellOrdersForToken(token TokenData, hivePrice decimal.Decimal) []EngineM
 
 func GetUnderpricedMarketBuyOrders(tokens []TokenData) ([]TokenData, error) {
 	// Reload all the buy orders for SWAP. tokens
-	GetAllSwapBuyOrders()
+	_ = GetAllSwapBuyOrders()
 
 	for i, token := range tokens {
 		// calculate hiveprice + network fee (percentage) as anything less than this is unprofitable
 		// 1/(1-fee) = the price we need to sell for or more in order to make a profit
 		hivePrice := token.HIVEPrice.Mul(decimal.NewFromInt(1).Div(decimal.NewFromInt(1).Sub(token.NetworkPercentageFee.Div(decimal.NewFromInt(100)))))
 
-		tokens[i].BuyOrders = GetBuyOrdersForToken(token, hivePrice)
+		orders := GetBuyOrdersForToken(token, hivePrice)
+
+		for j := range orders {
+			orders[j].ProfitPercentage = token.HIVEPrice.Sub(orders[j].Price).Div(token.HIVEPrice).Abs()
+			fmt.Println(orders[j].ProfitPercentage)
+		}
+
+		tokens[i].BuyOrders = orders
 	}
 
 	return tokens, nil

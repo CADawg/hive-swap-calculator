@@ -60,4 +60,7 @@ type EngineMarketOrder struct {
 	Timestamp     int64           `json:"timestamp"`
 	TransactionID string          `json:"txId"`
 	ID            int             `json:"_id"`
+
+	// Calculated fields
+	ProfitPercentage decimal.Decimal `json:"profit_percentage,omitempty"`
 }

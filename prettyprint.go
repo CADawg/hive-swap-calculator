@@ -34,18 +34,7 @@ func PrettyPrintTokenData(data []TokenData) {
 }
 
 func PrettyPrintOrderOneLine(token TokenData, order EngineMarketOrder, side string) string {
-	return fmt.Sprintf("%s %s %s at %s SWAP.HIVE (@%s) (%s)", side, order.Quantity.String(), order.Symbol, order.Price.String(), order.Account, PrettyPrintPriceDifference(token, order))
-}
-
-// display +x.x% or -x.x% depending on if the price is higher or lower than the hive price
-func PrettyPrintPriceDifference(token TokenData, order EngineMarketOrder) string {
-	difference := order.Price.Sub(token.HIVEPrice).Div(token.HIVEPrice).Mul(decimal.NewFromInt(100))
-
-	if difference.GreaterThan(decimal.Zero) {
-		return fmt.Sprintf("+%s%%", difference.StringFixed(2))
-	} else {
-		return fmt.Sprintf("%s%%", difference.StringFixed(2))
-	}
+	return fmt.Sprintf("%s %s %s at %s SWAP.HIVE (@%s) (%s%%)", side, order.Quantity.String(), order.Symbol, order.Price.String(), order.Account, order.ProfitPercentage.StringFixed(2))
 }
 
 /*func LoadAndShowCryptoIcon(token TokenData) {
