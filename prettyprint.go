@@ -21,19 +21,19 @@ func PrettyPrintTokenData(data []TokenData) {
 			fmt.Println("Sell Orders: ")
 		}
 		for _, order := range token.SellOrders {
-			fmt.Println(PrettyPrintOrderOneLine(token, order, "Sell"))
+			fmt.Println(PrettyPrintOrderOneLine(order, "Sell"))
 		}
 		if len(token.BuyOrders) > 0 {
 			fmt.Println("Buy Orders: ")
 		}
 		for _, order := range token.BuyOrders {
-			fmt.Println(PrettyPrintOrderOneLine(token, order, "Buy"))
+			fmt.Println(PrettyPrintOrderOneLine(order, "Buy"))
 		}
 		fmt.Println()
 	}
 }
 
-func PrettyPrintOrderOneLine(token TokenData, order EngineMarketOrder, side string) string {
+func PrettyPrintOrderOneLine(order EngineMarketOrder, side string) string {
 	return fmt.Sprintf("%s %s %s at %s SWAP.HIVE (@%s) (%s%%)", side, order.Quantity.String(), order.Symbol, order.Price.String(), order.Account, order.ProfitPercentage.StringFixed(2))
 }
 

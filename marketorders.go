@@ -100,14 +100,3 @@ func GetBuyOrdersForToken(token TokenData, hivePrice decimal.Decimal) []EngineMa
 
 	return allOrders
 }
-
-func LenTokensMarketOrders(tokens []TokenData) int {
-	var total int
-
-	for _, token := range tokens {
-		total += len(token.SellOrders)
-		total += len(token.BuyOrders)
-	}
-
-	return total
-}
