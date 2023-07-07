@@ -141,7 +141,7 @@ export function App() {
                                         </div>
                                     </div>
                                     <div className="field">
-                                        <label className="label">{currency === "HIVE" ? "Deposit" : "Withdrawal"} Cost
+                                        <label className="label">Hive-Engine Deposit/Withdrawal Cost
                                             (%)</label>
                                         <div className="control">
                                             <input className="input" type="text" value={depositCost}
