@@ -70,7 +70,7 @@ export function App() {
      * */
     const calculateBestRoute = (e) => {
         e.preventDefault();
-    }/** @type Event */
+    };
 
 
     return (
