@@ -49,6 +49,7 @@ export function App() {
     let [depositCost, setDepositCost] = useState(1);
     let [depositAmount, setDepositAmount] = useState(1);
     let [coinsData, setCoinsData] = useState(/** @type {ParsedCoinDataArrayOrNull} */null);
+    let [orderSide, setOrderSide] = useState(/** @type {("buy"|"sell")} */'buy');
 
     useEffect(() => {
         const updateCoinsData = async () => setCoinsData(await GetCoinsData());
@@ -117,11 +118,17 @@ export function App() {
                             <div className="column">
                                 <div className="box has-background-info">
                                     <h2 className="title">Hive Value</h2>
-                                    <label className="label">Amount of coins to sell</label>
+                                    <label className="label">Amount of coins to {orderSide}</label>
                                     <div className="field has-addons">
+                                        <div className="control">
+                                            <button className={"button " + (orderSide === "buy" ? "is-primary" : "is-dark")} onClick={() => setOrderSide("buy")}>Buy</button>
+                                        </div>
+                                        <div className="control">
+                                            <button className={"button " + (orderSide === "sell" ? "is-danger" : "is-dark")} onClick={() => setOrderSide("sell")}>Sell</button>
+                                        </div>
                                         <div className="control is-expanded">
                                             <input className="input" type="text" placeholder="100" value={depositAmount} onChange={e => setDepositAmount(Number(e.currentTarget.value))} />
-                                            <p className="help">The amount of {currency} you want to sell.</p>
+                                            <p className="help">The amount of {currency} you want to {orderSide}.</p>
                                         </div>
                                         <div className="control">
                                             <div className="select">
