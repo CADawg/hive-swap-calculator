@@ -1,120 +1,31 @@
 import 'bulma/css/bulma.min.css';
 import {useEffect, useState} from "@preact/compat";
-import GetCoinGeckoData from "./coingecko.js";
-import FetchMarketSells from "./marketFetch.js";
-import BigNumber from "bignumber.js";
+import GetCoinsData from "./coindata.js";
 
-const ETH_GAS_PRICE_URL = "https://ethgw.hive-engine.com/api/utils/withdrawalfee/";
-const POLYGON_GAS_PRICE_URL = "https://polygw.hive-engine.com/api/utils/withdrawalfee/";
-const BSC_GAS_PRICE_URL = "https://bscgw.hive-engine.com/api/utils/withdrawalfee/";
-
-const CHECK_GAS_PRICE_URLS = [POLYGON_GAS_PRICE_URL, BSC_GAS_PRICE_URL, ETH_GAS_PRICE_URL];
-
-const BSC_TOKENS_URL = "https://bscgw.hive-engine.com/api/utils/tokens/bep20";
-const ETH_TOKENS_URL = "https://ethgw.hive-engine.com/api/utils/tokens/erc20";
-const POLYGON_TOKENS_URL = "https://polygw.hive-engine.com/api/utils/tokens/erc20";
-
-const CHECK_TOKEN_SUPPORT_URLS = [POLYGON_TOKENS_URL, BSC_TOKENS_URL, ETH_TOKENS_URL];
-
-const TOKEN_SYMBOL_LIST = ["BAT", "BNB", "BUSD", "BTC", "BCH", "DOGE", "EOS", "ETH", "HIVE", "LTC", "MATIC", "USDT", "WAX"];
-
-function GetCoinSymbol(coin) {
-    // use following to get symbol/nice name
-    let symbols = {
-        'basic-attention-token': 'BAT',
-        'binancecoin': 'BNB',
-        'binance-usd': 'BUSD',
-        'bitcoin': 'BTC',
-        'bitcoin-cash': 'BCH',
-        'dogecoin': 'DOGE',
-        'eos': 'EOS',
-        'ethereum': 'ETH',
-        'hive': 'HIVE',
-        'litecoin': 'LTC',
-        'matic-network': 'MATIC',
-        'tether': 'USDT',
-        'wax': 'WAX'
-    };
-
-    if (Object.prototype.hasOwnProperty.call(symbols, coin)) {
-        return symbols[coin];
+function AtoZSort(a, b) {
+    if (a.symbol < b.symbol) {
+        return -1;
+    } else if (a.symbol > b.symbol) {
+        return 1;
+    } else {
+        return 0;
     }
 }
 
-function GetCoinGeckoName(coin) {
-    let names = {
-        'BAT': 'basic-attention-token',
-        'BNB': 'binancecoin',
-        'BUSD': 'binance-usd',
-        'BTC': 'bitcoin',
-        'BCH': 'bitcoin-cash',
-        'DOGE': 'dogecoin',
-        'EOS': 'eos',
-        'ETH': 'ethereum',
-        'HIVE': 'hive',
-        'LTC': 'litecoin',
-        'MATIC': 'matic-network',
-        'USDT': 'tether',
-        'WAX': 'wax'
-    };
-
-    if (Object.prototype.hasOwnProperty.call(names, coin)) {
-        return names[coin];
-    }
-}
-
-function GetSwapName(coin) {
-    const swapNames = {
-        "BAT": "SWAP.BAT",
-        "BNB": "SWAP.BNB",
-        "BUSD": "SWAP.BUSD",
-        "BTC": "SWAP.BTC",
-        "BCH": "SWAP.BCH",
-        "DOGE": "SWAP.DOGE",
-        "EOS": "SWAP.EOS",
-        "ETH": "SWAP.ETH",
-        "HIVE": "SWAP.HIVE",
-        "LTC": "SWAP.LTC",
-        "MATIC": "SWAP.MATIC",
-        "USDT": "SWAP.USDT",
-        "WAX": "SWAP.WAX"
-    };
-
-    if (Object.prototype.hasOwnProperty.call(swapNames, coin)) {
-        return swapNames[coin];
-    }
-}
-
-function GetCoinName(swapName) {
-    const unswapNames = {
-        "SWAP.BAT": "BAT",
-        "SWAP.BNB": "BNB",
-        "SWAP.BUSD": "BUSD",
-        "SWAP.BTC": "BTC",
-        "SWAP.BCH": "BCH",
-        "SWAP.DOGE": "DOGE",
-        "SWAP.EOS": "EOS",
-        "SWAP.ETH": "ETH",
-        "SWAP.HIVE": "HIVE",
-        "SWAP.LTC": "LTC",
-        "SWAP.MATIC": "MATIC",
-        "SWAP.USDT": "USDT",
-        "SWAP.WAX": "WAX"
-    };
-
-    if (Object.prototype.hasOwnProperty.call(unswapNames, swapName)) {
-        return unswapNames[swapName];
-    }
-}
-
+/**
+ * @param {BigNumber} value number to format
+ * @param {boolean} isUSD whether the value is in USD or not
+ * @return {string}
+ * @constructor
+ */
 function SmartCurrencyFormat(value, isUSD) {
     if (isUSD) {
         // format: 3dp if < 1, 2dp if < 10, 1dp if < 100, 0dp if > 100
-        if (value < 1) {
+        if (value.lt(1)) {
             return value.toFixed(3);
-        } else if (value < 10) {
+        } else if (value.lt(10)) {
             return value.toFixed(2);
-        } else if (value < 100) {
+        } else if (value.lt(100)) {
             return value.toFixed(1);
         } else {
             return value.toFixed(0);
@@ -122,11 +33,11 @@ function SmartCurrencyFormat(value, isUSD) {
     }
 
     // format: 3dp if < 10, 2dp if < 100, 1dp if < 1000, 0dp if > 1000
-    if (value < 10) {
+    if (value.lt(10)) {
         return value.toFixed(3);
-    } else if (value < 100) {
+    } else if (value.lt(100)) {
         return value.toFixed(2);
-    } else if (value < 1000) {
+    } else if (value.lt(1000)) {
         return value.toFixed(1);
     } else {
         return value.toFixed(0);
@@ -137,79 +48,29 @@ export function App() {
     let [currency, setCurrency] = useState('HIVE');
     let [depositCost, setDepositCost] = useState(1);
     let [depositAmount, setDepositAmount] = useState(1);
-    let [coinGeckoData, setCoinGeckoData] = useState(null);
-    let [hiveEngineSupportedData, setHiveEngineSupportedData] = useState({poly: [], bsc: [], eth: []});
-    let [hiveEngineFeeData, setHiveEngineFeeData] = useState({poly: [], bsc: [], eth: []});
-    let [sellMarketData, setSellMarketData] = useState({});
-    const WITHDRAW_TO_ANY_OTHER_NETWORK_FEE = 0.01; // 1% fee to withdraw to any other network
-    // calculate price multiplier to need for a trade to be profitable
-    // 0.01 fee = 1 hive => 0.99 hive
-    const PRICE_MULTIPLIER = BigNumber(1).dividedBy(BigNumber(1).minus(BigNumber(WITHDRAW_TO_ANY_OTHER_NETWORK_FEE)));
+    let [coinsData, setCoinsData] = useState(/** @type {ParsedCoinDataArrayOrNull} */null);
 
     useEffect(() => {
-        const updateCoinGeckoData = async () => setCoinGeckoData(await GetCoinGeckoData());
+        const updateCoinsData = async () => setCoinsData(await GetCoinsData());
 
-        updateCoinGeckoData().then(r => {
+        updateCoinsData().then(() => {
         });
 
         const interval = setInterval(() => {
-            updateCoinGeckoData().then(r => {
+            updateCoinsData().then(() => {
             });
-        }, 30000);
+        }, 5000);
 
         return () => clearInterval(interval);
     }, []);
 
-
-    useEffect(() => {
-        (async function () {
-            if (coinGeckoData === null) {
-                return;
-            }
-
-            const data = {};
-
-            // for each token we know of
-            for (const tokenId in TOKEN_SYMBOL_LIST) {
-                let token = TOKEN_SYMBOL_LIST[tokenId];
-
-                // fetch sell orders above price + WITHDRAW_TO_ANY_OTHER_NETWORK_FEE
-                data[token] = await FetchMarketSells(GetSwapName(token), BigNumber(coinGeckoData[GetCoinGeckoName(token)].hive).times(PRICE_MULTIPLIER).toFixed(18));
-            }
-
-            setSellMarketData(data);
-        })(coinGeckoData);
-    }, [coinGeckoData]);
-
+    /**
+     * Calculates the best route to cash out your coins
+     * @param {Event} e
+     * */
     const calculateBestRoute = (e) => {
-        e.PreventDefault();
-        e.StopPropagation();
-
-        let realHiveAmount = BigNumber(depositAmount);
-
-        // work out how much it's worth if we sell it as hive
-        if (currency === "SWAP.HIVE") {
-            // remove fee
-            realHiveAmount = realHiveAmount.times(BigNumber(1).minus(BigNumber(depositCost).dividedBy(100)));
-        }
-
-        let pricePerHiveAsHive = realHiveAmount.div(depositAmount);
-
-        // calculate alternative routes
-        let alternativeRoutes = [];
-
-        // for each token we know of
-        for (const token in sellMarketData) {
-            let convertToPaymentCurrencyMultiplier = BigNumber(1);
-
-            if (currency === "HIVE") {
-                convertToPaymentCurrencyMultiplier = BigNumber(1).minus(BigNumber(depositCost).dividedBy(100));
-            }
-
-            // loop through sellmarketdata until we've sold all our hive
-
-        }
-    }
+        e.preventDefault();
+    }/** @type Event */
 
 
     return (
@@ -234,16 +95,16 @@ export function App() {
                             <div className="column is-one-quarter">
                                 <div className="box has-background-success-dark">
                                     <h2 className="title">Coin Values</h2>
-                                    {/* if coingeckodata show $price, hive price and % change (round % to 2dp, prices to 3dp) - single line for each + green or red for percent */}
-                                    {coinGeckoData && Object.keys(coinGeckoData).map(coin => {
+                                    {/* if coinsData show $price, hive price and % change (round % to 2dp, prices to 3dp) - single line for each + green or red for percent */}
+                                    {coinsData && coinsData.sort(AtoZSort).map(coin => {
                                         return <div className="box has-background-grey-darker p-1 m-1"><p
                                             className="has-text-light">
-                                            <strong>{GetCoinSymbol(coin)}</strong> ${SmartCurrencyFormat(coinGeckoData[coin].usd, true)} / {SmartCurrencyFormat(coinGeckoData[coin].hive, false)} HIVE <strong
-                                            className={coinGeckoData[coin].usd_24h_change > 0 ? "has-text-success" : "has-text-danger"}>({coinGeckoData[coin].usd_24h_change.toFixed(2)}%)</strong>
+                                            <strong>{coin.symbol}</strong> ${SmartCurrencyFormat(coin.usd, true)} / {SmartCurrencyFormat(coin.hive, false)} HIVE <strong
+                                            className={coin.usd_24h_change.gt(0) ? "has-text-success" : "has-text-danger"}>({coin.usd_24h_change.toFixed(2)}%)</strong>
                                         </p></div>
                                     })}
 
-                                    {/* need coingecko reference to comply with terms */}
+                                    {/* need CoinGecko reference to comply with terms */}
                                     <p className="has-text-light">Powered by <a href="https://www.coingecko.com/en/api"
                                                                                 target="_blank"
                                                                                 rel="noopener noreferrer"

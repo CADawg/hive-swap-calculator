@@ -77,7 +77,7 @@ func main() {
 
 		mux := http.NewServeMux()
 
-		mux.HandleFunc("/pricing", func(w http.ResponseWriter, r *http.Request) {
+		mux.HandleFunc("/prices", func(w http.ResponseWriter, r *http.Request) {
 			TokensLock.RLock()
 			defer TokensLock.RUnlock()
 
@@ -86,6 +86,7 @@ func main() {
 				return
 			}
 
+			w.Header().Set("Content-Type", "application/json")
 			err := json.NewEncoder(w).Encode(Tokens)
 
 			if err != nil {
