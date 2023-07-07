@@ -148,7 +148,7 @@ export function App() {
                                                    onChange={e => setDepositCost(Number(e.currentTarget.value))}
                                                    placeholder="Deposit/Withdrawal Cost"/>
                                             <p className="help">The cost
-                                                of {currency === "HIVE" ? "depositing hive to" : "withdrawing swap.hive from"} hive-engine.
+                                                of depositing and withdrawing SWAP.HIVE to and from hive-engine.
                                                 This is used to calculate the best route.</p>
                                         </div>
                                         <div className="control mt-3">
