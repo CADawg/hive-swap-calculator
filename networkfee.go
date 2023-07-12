@@ -31,8 +31,8 @@ type TokenNetworkDataResponse struct {
 	Data   []TokenNetworkData `json:"data"`
 }
 
-// These ones don't appear in the API but can be requested from the fee endpoint and have the 1% fee
-var TokenNetworkDataStoreDefault []TokenNetworkData = []TokenNetworkData{
+// TokenNetworkDataStoreDefault These don't appear in the API but can be requested from the fee endpoint and have the 1% fee
+var TokenNetworkDataStoreDefault = []TokenNetworkData{
 	{
 		Name:                "Ethereum",
 		HiveEngineSymbol:    "SWAP.ETH",
@@ -63,29 +63,29 @@ var TokenNetworkDataStoreDefault []TokenNetworkData = []TokenNetworkData{
 }
 
 var TokenNetworkDataStore []TokenNetworkData = nil
-var TokenNetworkDataStoreLock *sync.RWMutex = &sync.RWMutex{}
+var TokenNetworkDataStoreLock = &sync.RWMutex{}
 
 var LastSeenData []TokenData = nil
-var LastSeenDataLock *sync.RWMutex = &sync.RWMutex{}
+var LastSeenDataLock = &sync.RWMutex{}
 
-const BSC_TOKENS_URL = "https://bscgw.hive-engine.com/api/utils/tokens/bep20"
-const ETH_TOKENS_URL = "https://ethgw.hive-engine.com/api/utils/tokens/erc20"
-const POLYGON_TOKENS_URL = "https://polygw.hive-engine.com/api/utils/tokens/erc20"
+const BscTokensUrl = "https://bscgw.hive-engine.com/api/utils/tokens/bep20"
+const EthTokensUrl = "https://ethgw.hive-engine.com/api/utils/tokens/erc20"
+const PolygonTokensUrl = "https://polygw.hive-engine.com/api/utils/tokens/erc20"
 
 var NetworksWithAdditionalFixedFee = map[string]string{
-	"Binance Smart Chain": BSC_TOKENS_URL,
-	"Ethereum":            ETH_TOKENS_URL,
-	"Polygon (Matic)":     POLYGON_TOKENS_URL,
+	"Binance Smart Chain": BscTokensUrl,
+	"Ethereum":            EthTokensUrl,
+	"Polygon (Matic)":     PolygonTokensUrl,
 }
 
-const ETH_GAS_PRICE_URL = "https://ethgw.hive-engine.com/api/utils/withdrawalfee/"
-const POLYGON_GAS_PRICE_URL = "https://polygw.hive-engine.com/api/utils/withdrawalfee/"
-const BSC_GAS_PRICE_URL = "https://bscgw.hive-engine.com/api/utils/withdrawalfee/"
+const EthGasPriceUrl = "https://ethgw.hive-engine.com/api/utils/withdrawalfee/"
+const PolygonGasPriceUrl = "https://polygw.hive-engine.com/api/utils/withdrawalfee/"
+const BscGasPriceUrl = "https://bscgw.hive-engine.com/api/utils/withdrawalfee/"
 
 var NetworksWithAdditionalFixedFeeEndpoints = map[string]string{
-	"Binance Smart Chain": BSC_GAS_PRICE_URL,
-	"Ethereum":            ETH_GAS_PRICE_URL,
-	"Polygon (Matic)":     POLYGON_GAS_PRICE_URL,
+	"Binance Smart Chain": BscGasPriceUrl,
+	"Ethereum":            EthGasPriceUrl,
+	"Polygon (Matic)":     PolygonGasPriceUrl,
 }
 
 var NetworkFeeCurrency = map[string]string{
@@ -109,7 +109,7 @@ func init() {
 			// load cost of each token in TokenNetworkDataStore
 			// and then add the cheapest fixed fee to the token
 			for i, token := range TokenNetworkDataStore {
-				var doWeHaveThisToken bool = false
+				var doWeHaveThisToken = false
 
 				for _, tokenData := range LastSeenData {
 					if strings.ToUpper(token.HiveEngineSymbol) == tokenData.SwapSymbol {
@@ -134,7 +134,7 @@ func init() {
 				}
 
 				LastSeenDataLock.RLock()
-				var newFee decimal.Decimal = decimal.Zero
+				var newFee = decimal.Zero
 				for _, data := range LastSeenData {
 					if strings.ToUpper(data.Symbol) == NetworkFeeCurrency[token.Network] {
 						newFee = data.HIVEPrice.Mul(feeData.Data)
