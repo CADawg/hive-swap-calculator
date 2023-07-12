@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"github.com/shopspring/decimal"
 )
 
@@ -80,7 +79,6 @@ func GetUnderpricedMarketBuyOrders(tokens []TokenData) ([]TokenData, error) {
 
 		for j := range orders {
 			orders[j].ProfitPercentage = token.HIVEPrice.Sub(orders[j].Price).Div(token.HIVEPrice).Abs()
-			fmt.Println(orders[j].ProfitPercentage)
 		}
 
 		tokens[i].BuyOrders = orders

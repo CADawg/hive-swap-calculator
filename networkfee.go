@@ -2,11 +2,10 @@ package main
 
 import (
 	"errors"
+	"github.com/shopspring/decimal"
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/shopspring/decimal"
 )
 
 type TokenNetworkData struct {
@@ -66,6 +65,9 @@ var TokenNetworkDataStoreDefault []TokenNetworkData = []TokenNetworkData{
 var TokenNetworkDataStore []TokenNetworkData = nil
 var TokenNetworkDataStoreLock *sync.RWMutex = &sync.RWMutex{}
 
+var LastSeenData []TokenData = nil
+var LastSeenDataLock *sync.RWMutex = &sync.RWMutex{}
+
 const BSC_TOKENS_URL = "https://bscgw.hive-engine.com/api/utils/tokens/bep20"
 const ETH_TOKENS_URL = "https://ethgw.hive-engine.com/api/utils/tokens/erc20"
 const POLYGON_TOKENS_URL = "https://polygw.hive-engine.com/api/utils/tokens/erc20"
@@ -86,9 +88,79 @@ var NetworksWithAdditionalFixedFeeEndpoints = map[string]string{
 	"Polygon (Matic)":     POLYGON_GAS_PRICE_URL,
 }
 
+var NetworkFeeCurrency = map[string]string{
+	"Binance Smart Chain": "BNB",
+	"Ethereum":            "ETH",
+	"Polygon (Matic)":     "MATIC",
+}
+
+var Ready = false
+
+func init() {
+	// start a goroutine to update the fee data every 1 minute
+	go func() {
+		for {
+			if LastSeenData == nil || TokenNetworkDataStore == nil {
+				// Retry quickly if there's no data (it'll arrive soon)
+				time.Sleep(time.Second)
+				continue
+			}
+
+			// load cost of each token in TokenNetworkDataStore
+			// and then add the cheapest fixed fee to the token
+			for i, token := range TokenNetworkDataStore {
+				var doWeHaveThisToken bool = false
+
+				for _, tokenData := range LastSeenData {
+					if strings.ToUpper(token.HiveEngineSymbol) == tokenData.SwapSymbol {
+						doWeHaveThisToken = true
+						break
+					}
+				}
+
+				// no point making extra network requests if we don't have the token
+				if !doWeHaveThisToken {
+					continue
+				}
+
+				feeData, err := GetJSON[TokenFeeData](NetworksWithAdditionalFixedFeeEndpoints[token.Network] + token.HiveEngineSymbol)
+
+				if err != nil {
+					continue
+				}
+
+				if feeData.Status != "success" {
+					continue
+				}
+
+				LastSeenDataLock.RLock()
+				var newFee decimal.Decimal = decimal.Zero
+				for _, data := range LastSeenData {
+					if strings.ToUpper(data.Symbol) == NetworkFeeCurrency[token.Network] {
+						newFee = data.HIVEPrice.Mul(feeData.Data)
+					}
+				}
+				LastSeenDataLock.RUnlock()
+
+				TokenNetworkDataStoreLock.Lock()
+				TokenNetworkDataStore[i].FixedFee = newFee
+				TokenNetworkDataStoreLock.Unlock()
+			}
+
+			Ready = true
+
+			time.Sleep(time.Minute)
+		}
+	}()
+}
+
 func AddNetworkFee(data []TokenData) ([]TokenData, error) {
+	LastSeenDataLock.Lock()
+	LastSeenData = data
+	LastSeenDataLock.Unlock()
+
 	if TokenNetworkDataStore == nil {
-		// load token network data (data that links token -> withdrawal network so we know which endpoint to ask for the fee)
+		// load token network data (data that links token -> withdrawal network, so we know which endpoint to ask for the fee)
 
 		for network, url := range NetworksWithAdditionalFixedFee {
 			tokens, err := GetJSON[TokenNetworkDataResponse](url)
@@ -112,45 +184,6 @@ func AddNetworkFee(data []TokenData) ([]TokenData, error) {
 			TokenNetworkDataStore = append(TokenNetworkDataStore, tokens.Data...)
 			TokenNetworkDataStoreLock.Unlock()
 		}
-
-		// start a goroutine to update the fee data every 1 minute
-		go func() {
-			for {
-				// load cost of each token in tokennetworkdatastore
-				// and then add the cheapest fixed fee to the token
-				for i, token := range TokenNetworkDataStore {
-					var doWeHaveThisToken bool = false
-
-					for _, tokenData := range data {
-						if strings.ToUpper(token.HiveEngineSymbol) == tokenData.SwapSymbol {
-							doWeHaveThisToken = true
-							break
-						}
-					}
-
-					// no point making extra network requests if we don't have the token
-					if !doWeHaveThisToken {
-						continue
-					}
-
-					feeData, err := GetJSON[TokenFeeData](NetworksWithAdditionalFixedFeeEndpoints[token.Network] + token.HiveEngineSymbol)
-
-					if err != nil {
-						continue
-					}
-
-					if feeData.Status != "success" {
-						continue
-					}
-
-					TokenNetworkDataStoreLock.Lock()
-					TokenNetworkDataStore[i].FixedFee = feeData.Data
-					TokenNetworkDataStoreLock.Unlock()
-				}
-
-				time.Sleep(time.Minute)
-			}
-		}()
 	}
 
 	for i, token := range data {
@@ -165,6 +198,11 @@ func AddNetworkFee(data []TokenData) ([]TokenData, error) {
 				data[i].Network = networkData.Network
 			}
 		}
+	}
+
+	// Prevent data with wrong fee info from reaching the site
+	if !Ready {
+		return nil, errors.New("not ready yet")
 	}
 
 	return data, nil
