@@ -2,39 +2,87 @@ import BigNumber from "bignumber.js";
 
 /**
  * Order is the data returned from the backend about an order
- * @typedef {{account:string,expiration:Number,price:string,quantity:string,symbol:string,timestamp:Number,txId:string,_id:Number,profit_percentage:String}} Order
- */
+*/
+export type Order = {
+    account: string,
+    expiration: Number,
+    price: string,
+    quantity: string,
+    symbol: string,
+    timestamp: Number,
+    txId: string,
+    _id: Number,
+    profit_percentage: string
+};
 
 /**
  * ParsedOrder is the data returned from the backend about an order with big numbers instead of strings
- * @typedef {{account:string,expiration:Number,price:BigNumber,quantity:BigNumber,symbol:string,timestamp:Number,txId:string,_id:Number,profit_percentage:BigNumber}} ParsedOrder
  */
+export type ParsedOrder = {
+    account: string,
+    expiration: Number,
+    price: BigNumber,
+    quantity: BigNumber,
+    symbol: string,
+    timestamp: Number,
+    txId: string,
+    _id: Number,
+    profit_percentage: BigNumber,
+    profit_per_coin?: BigNumber
+};
 
 /**
  * CoinData is the data returned from the backend about various coins
- * @typedef {{usd:string,usd_24h_change:string,btc:string,btc_24h_change:string,last_updated_at:number,hive:string,network_percentage_fee:string,network_flat_fee:string,name:string,symbol:string,swap_symbol:string,buy_orders:Order[],sell_orders:Order[]}} CoinData
- * @typedef {(CoinData[]|null)} CoinDataArrayOrNull
  * */
+export type CoinData = {
+    usd: string,
+    usd_24h_change: string,
+    btc: string,
+    btc_24h_change: string,
+    last_updated_at: number,
+    hive: string,
+    network_percentage_fee: string,
+    network_flat_fee: string,
+    name: string,
+    symbol: string,
+    swap_symbol: string,
+    buy_orders: Order[],
+    sell_orders: Order[]
+};
+
+export type CoinDataArrayOrNull = CoinData[] | null;
 
 /**
  * ParsedCoinData is the data returned from the backend about various coins with big numbers instead of strings
- * @typedef {{usd:BigNumber,usd_24h_change:BigNumber,btc:BigNumber,btc_24h_change:BigNumber,last_updated_at:number,hive:BigNumber,network_percentage_fee:BigNumber,network_flat_fee:BigNumber,name:string,symbol:string,swap_symbol:string,buy_orders:ParsedOrder[],sell_orders:ParsedOrder[]}} ParsedCoinData
- * @typedef {(ParsedCoinData[]|null)} ParsedCoinDataArrayOrNull
  */
+export type ParsedCoinData = {
+    usd: BigNumber,
+    usd_24h_change: BigNumber,
+    btc: BigNumber,
+    btc_24h_change: BigNumber,
+    last_updated_at: number,
+    hive: BigNumber,
+    network_percentage_fee: BigNumber,
+    network_flat_fee: BigNumber,
+    name: string,
+    symbol: string,
+    swap_symbol: string,
+    buy_orders: ParsedOrder[],
+    sell_orders: ParsedOrder[]
+};
+
+export type ParsedCoinDataArrayOrNull = ParsedCoinData[] | null;
 
 /**
  * GetCoinsData fetches the data from the backend and returns it
- * @returns {ParsedCoinDataArrayOrNull} The data from the backend
  */
-export default async function GetCoinsData() {
+export default async function GetCoinsData(): Promise<ParsedCoinDataArrayOrNull> {
     const response = await fetch('http://localhost:8080/prices');
-    /** @type {CoinDataArrayOrNull} */
-    let data = await response.json();
+    let data = await response.json() as CoinDataArrayOrNull;
 
     if (data === null) return null;
 
-    /** @type {ParsedCoinDataArrayOrNull} */
-    let parsedData = [];
+    let parsedData: ParsedCoinDataArrayOrNull = [];
 
     for (let i = 0; i < data.length; i++) {
         parsedData.push(ConvertCoinsDataToBigNumbers(data[i]));
@@ -45,10 +93,8 @@ export default async function GetCoinsData() {
 
 /**
  * ConvertCoinsDataToBigNumbers converts the string values in the coins data to big numbers
- * @param {(CoinData)} value string to convert
- * @returns {(ParsedCoinData)} The data from the backend with big numbers instead of strings
  */
-function ConvertCoinsDataToBigNumbers(value) {
+function ConvertCoinsDataToBigNumbers(value: CoinData): ParsedCoinData {
     let buyOrders = [];
     let sellOrders = [];
 
@@ -83,10 +129,8 @@ function ConvertCoinsDataToBigNumbers(value) {
 
 /**
  * ConvertOrdersToBigNumbers converts the string values in the orders to big numbers
- * @param {Order} value string to convert
- * @returns {ParsedOrder} The data from the backend with big numbers instead of strings
  */
-function ConvertOrdersToBigNumbers(value) {
+function ConvertOrdersToBigNumbers(value: Order): ParsedOrder {
     return {
         account: value.account,
         expiration: value.expiration,
