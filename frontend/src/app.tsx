@@ -1,6 +1,11 @@
 import 'bulma/css/bulma.min.css';
 import {useEffect, useState} from "preact/compat";
-import GetCoinsData, {CoinData, ParsedCoinData, ParsedCoinDataArrayOrNull, ParsedOrder} from "./coindata.ts";
+import GetCoinsData, {
+    CoinData,
+    ParsedCoinData,
+    ParsedCoinDataArrayOrNull, ParsedCoinWithOrderProfit,
+    ParsedOrderWithCoinData, ParsedOrderWithProfitData
+} from "./coindata.ts";
 import BigNumber from "bignumber.js";
 import {JSX} from "preact";
 
@@ -97,88 +102,94 @@ export function App(): JSX.Element {
 
         let hiveAmountOut = BigNumber(depositAmount).times(BigNumber(1).minus(defaultHivePenalty));
 
+        let processedCoinsData : ParsedCoinWithOrderProfit[] = [];
+
         // work out profit post deposit/withdrawal (minus each coin's deposit/withdrawal fee)
         for (let i = 0; i < coinsData.length; i++) {
-            let coin = coinsData[i];
+            let coin = {...coinsData[i]} as ParsedCoinData;
 
             let orders = orderSide === "buy" ? coin.buy_orders : coin.sell_orders;
+
+            let newOrders : ParsedOrderWithProfitData[] = [];
 
             // we want to buy hive or swap.hive with usd/other crypto
             for (let j = 0; j < orders.length; j++) {
                 let order = orders[j];
 
-                // add up profit
+                // get the total amount of hive we will put in or get out of this order
                 let netValueOfOrder = order.price.times(order.quantity);
 
-                // subtract fees
-                if (currency === 'HIVE') {
-                    // subtract hive withdrawal fee
-                    netValueOfOrder = netValueOfOrder.times(BigNumber(1).minus(defaultHivePenalty));
-                } else {
-                    // subtract swap.hive withdrawal fee
-                    netValueOfOrder = netValueOfOrder.times(BigNumber(1).minus(defaultSwapHivePenalty));
-                }
+                // subtract hive engine fees for swapping between hive and swap.hive (if applicable - defaultXPenalty will be 0 otherwise)
+                netValueOfOrder = netValueOfOrder.times(BigNumber(1).minus(currency === 'HIVE' ? defaultHivePenalty : defaultSwapHivePenalty))
 
-                // subtract network deposit/withdrawal fee
+                // subtract network deposit/withdrawal fee (it's provided as a % decimal i.e. 0.75 = 0.75%)
                 netValueOfOrder = netValueOfOrder.times(BigNumber(1).minus(BigNumber(coin.network_percentage_fee.div(BigNumber(100)))));
 
-                // subtract fixed fee (we should really do this for the whole coin but that adds a bunch of complexity)
+                // subtract fixed fee todo: do this for the whole coin (adds a bunch of complexity)
                 netValueOfOrder = netValueOfOrder.minus(BigNumber(coin.network_flat_fee));
 
-                order.HiveOutPerHiveIn = netValueOfOrder.div(order.quantity.times(coin.hive));
+                if (orderSide === "buy") {
+                    // work out hive in equivalent of coin price and divide it by the amount of hive we will get out
+                    let hiveSwapRatio = netValueOfOrder.div(order.quantity.times(coin.hive));
 
-                // calc profit
-                order.profit_per_coin = order.HiveOutPerHiveIn.minus(BigNumber(1));
+                    // calc profit
+                    order.profit_per_hive = hiveSwapRatio.minus(BigNumber(1));
+                    order.profit_percentage = order.profit_per_hive.times(BigNumber(100));
+                } else {
+                    // work out hive in equivalent of coin price and divide it by the amount of hive we will get out
+                    let hiveSwapRatio = netValueOfOrder.div(order.quantity.times(coin.hive));
+
+                    // calc profit
+                    order.profit_per_hive = hiveSwapRatio.minus(BigNumber(1));
+                    order.profit_percentage = order.profit_per_hive.times(BigNumber(100));
+                }
+
+                newOrders.push(order as ParsedOrderWithProfitData);
             }
+
+            if (orderSide == "buy") {
+                coin.buy_orders = newOrders.filter((order) => order.profit_per_hive.gt(0));
+            } else {
+                coin.sell_orders = newOrders.filter((order) => order.profit_per_hive.gt(0));
+            }
+
+            processedCoinsData.push(coin as ParsedCoinWithOrderProfit);
         }
 
+        // from here we should only use processedCoinsData and not coinsData
+
         // orders we can take (array of order with coin data embedded)
-        let orderOptions: {coin: ParsedCoinData, order: ParsedOrder}[] = [];
+        let orderOptions: ParsedOrderWithCoinData[] = [];
 
-        for (let i = 0; i < coinsData.length; i++) {
-            const coin = coinsData[i];
+        // add all orders to orderOptions
+        for (let i = 0; i < processedCoinsData.length; i++) {
+            let coin = processedCoinsData[i];
 
-            if (orderSide === "buy") {
-                for (let j = 0; j < coin.buy_orders.length; j++) {
-                    const order = coin.buy_orders[j];
+            let orders = orderSide === "buy" ? coin.buy_orders : coin.sell_orders;
 
-                    if (order.profit_per_coin?.gt(0)) {
-                        orderOptions.push({
-                            coin: coin,
-                            order: order
-                        });
-                    }
-                }
-            } else {
-                for (let j = 0; j < coin.sell_orders.length; j++) {
-                    const order = coin.sell_orders[j];
+            for (let j = 0; j < orders.length; j++) {
+                let orderWithCoin = orders[j] as ParsedOrderWithCoinData;
 
-                    if (order.profit_per_coin.gt(0)) {
-                        orderOptions.push({
-                            coin: coin,
-                            order: order
-                        });
-                    }
-                }
+                orderWithCoin.coin_data = coin;
+
+                orderOptions.push(orderWithCoin as ParsedOrderWithCoinData)
             }
         }
 
         // order by profit per hive
         orderOptions.sort((a, b) => {
             if (orderSide === "buy") {
-                return b.order.profit_per_coin.minus(a.order.profit_per_coin);
+                return b.profit_per_hive.minus(a.profit_per_hive).toNumber();
             } else {
-                return a.order.profit_per_coin.minus(b.order.profit_per_coin);
+                return a.profit_per_hive.minus(b.profit_per_hive).toNumber();
             }
         });
 
         // print best routes until we run out of hive (group all orders by coin)
         let hiveLeft = hiveAmountOut;
 
-        /**
-         * @type {BestRoute[]}
-         */
-        let bestRoutesUngrouped = [];
+        // best routes in order of profit
+        let bestRoutesUngrouped: BestRoute[] = [];
 
         while (hiveLeft.gt(0) && orderOptions.length > 0) {
             // pop the best order
@@ -369,7 +380,7 @@ export function App(): JSX.Element {
                                         {bestRoutes && bestRoutes.map(route => {
                                             return <div className="box has-background-grey-darker p-1 m-1"><p
                                                 className="has-text-light">
-                                                <strong>{route.from}</strong> to <strong>{route.to}</strong> for {SmartCurrencyFormat(route.amountOtherCoinIn, false)} {route.from} -> HIVE ({SmartCurrencyFormat(route.outHiveEquivalent, false)} {route.to}) <strong
+                                                <strong>{route.from}</strong> to <strong>{route.to}</strong> for {SmartCurrencyFormat(route.amountOtherCoinIn, false)} {route.from} -&gt; HIVE ({SmartCurrencyFormat(route.outHiveEquivalent, false)} {route.to}) <strong
                                                 className="has-text-success">({route.percentageProfit.toFixed(2)}%)</strong>
                                             </p></div>
                                         })}

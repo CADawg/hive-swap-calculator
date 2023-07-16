@@ -28,8 +28,23 @@ export type ParsedOrder = {
     txId: string,
     _id: Number,
     profit_percentage: BigNumber,
-    profit_per_coin?: BigNumber
+    profit_per_hive?: BigNumber,
 };
+
+export interface ParsedOrderWithProfitData extends ParsedOrder {
+    profit_per_hive: BigNumber
+}
+
+export interface ParsedOrderWithCoinData extends ParsedOrder {
+    profit_per_hive: BigNumber, // not optional
+    coin_data: ParsedCoinData
+}
+
+export interface ParsedCoinWithOrderProfit extends ParsedCoinData {
+    coin_data: ParsedCoinData,
+    buy_orders: ParsedOrderWithProfitData[],
+    sell_orders: ParsedOrderWithProfitData[]
+}
 
 /**
  * CoinData is the data returned from the backend about various coins
