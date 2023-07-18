@@ -8,6 +8,7 @@ import GetCoinsData, {
 } from "./coindata.ts";
 import BigNumber from "bignumber.js";
 import {JSX} from "preact";
+import * as React from "preact/compat";
 
 function AtoZSort(a: ParsedCoinData|CoinData, b: ParsedCoinData|CoinData): number {
     if (a.symbol < b.symbol) {
@@ -19,29 +20,48 @@ function AtoZSort(a: ParsedCoinData|CoinData, b: ParsedCoinData|CoinData): numbe
     }
 }
 
-function SmartCurrencyFormat(value: BigNumber, isUSD: boolean): string {
-    if (isUSD) {
-        // format: 3dp if < 1, 2dp if < 10, 1dp if < 100, 0dp if > 100
-        if (value.lt(1)) {
-            return value.toFixed(3);
-        } else if (value.lt(10)) {
-            return value.toFixed(2);
-        } else if (value.lt(100)) {
-            return value.toFixed(1);
-        } else {
-            return value.toFixed(0);
-        }
+function SmartCurrencyFormat(value: BigNumber, currency: string): string {
+    currency = currency.toLowerCase();
+
+    if (currency.startsWith("swap.")) {
+        currency = currency.substring(5);
     }
 
-    // format: 3dp if < 10, 2dp if < 100, 1dp if < 1000, 0dp if > 1000
-    if (value.lt(10)) {
-        return value.toFixed(3);
-    } else if (value.lt(100)) {
-        return value.toFixed(2);
-    } else if (value.lt(1000)) {
-        return value.toFixed(1);
-    } else {
-        return value.toFixed(0);
+    switch (currency) {
+        case "usd":
+            if (value.lt(1)) {
+                return value.toFixed(3);
+            } else if (value.lt(10)) {
+                return value.toFixed(2);
+            } else if (value.lt(100)) {
+                return value.toFixed(1);
+            } else {
+                return value.toFixed(0);
+            }
+        case "hive" || "steem":
+            if (value.lt(1)) {
+                return value.toFixed(3);
+            } else if (value.lt(10)) {
+                return value.toFixed(2);
+            } else if (value.lt(100)) {
+                return value.toFixed(1);
+            } else {
+                return value.toFixed(0);
+            }
+        default:
+            if (value.lt(1)) {
+                return value.toFixed(5);
+            } else if (value.lt(10)) {
+                return value.toFixed(4);
+            } else if (value.lt(100)) {
+                return value.toFixed(3);
+            } else if (value.lt(1000)) {
+                return value.toFixed(2);
+            } else if (value.lt(10000)) {
+                return value.toFixed(1);
+            } else {
+                return value.toFixed(0);
+            }
     }
 }
 
@@ -49,18 +69,23 @@ function SmartCurrencyFormat(value: BigNumber, isUSD: boolean): string {
  * The best route to cash out your coins
  */
 export type BestRoute = {
-    from: string,
-    to: string,
-    amountHive: BigNumber,
+    from: RouteCurrency,
+    to: RouteCurrency,
     percentageProfit: BigNumber,
-    outHiveEquivalent: BigNumber
 };
+
+export type RouteCurrency = {
+    symbol: string,
+    amount: BigNumber,
+    amountHive: BigNumber,
+    amountUSD: BigNumber,
+}
 
 
 export function App(): JSX.Element {
     let [currency, setCurrency] = useState<"HIVE"|"SWAP.HIVE">('HIVE');
-    let [depositCost, setDepositCost] = useState<number>(1);
-    let [depositAmount, setDepositAmount] = useState<number>(1);
+    let [depositCost, setDepositCost] = useState<number>(0.75);
+    let [depositAmount, setDepositAmount] = useState<number>(10);
     let [coinsData, setCoinsData] = useState<ParsedCoinDataArrayOrNull>(null);
     let [orderSide, setOrderSide] = useState<"buy"|"sell">('buy');
     let [bestRoutes, setBestRoutes] = useState<BestRoute[]>([]);
@@ -84,23 +109,14 @@ export function App(): JSX.Element {
      * */
     const calculateBestRoute = () => {
         // work out default penalty (do we need to deposit/withdraw from engine)
-        let defaultHivePenalty = BigNumber(0);
-        let defaultSwapHivePenalty = BigNumber(0);
-
-        if (currency === 'HIVE') {
-            // if we are buying coins, we need to deposit hive to the engine
-            defaultSwapHivePenalty = BigNumber(depositCost).div(BigNumber(100));
-        }
-
-        if (currency === 'SWAP.HIVE') {
-            defaultHivePenalty = BigNumber(depositCost).div(BigNumber(100));
-        }
+        let defaultEngineSwapPenalty = BigNumber(depositCost).div(BigNumber(100))
+        let feeAppliedToHiveDeposits = currency === "SWAP.HIVE" ? defaultEngineSwapPenalty : BigNumber(0);
 
         if (coinsData === null || typeof coinsData === 'undefined' || coinsData.length === 0) {
             return;
         }
 
-        let hiveAmountOut = BigNumber(depositAmount).times(BigNumber(1).minus(defaultHivePenalty));
+        let hiveAmountOut = BigNumber(depositAmount);
 
         let processedCoinsData : ParsedCoinWithOrderProfit[] = [];
 
@@ -120,13 +136,16 @@ export function App(): JSX.Element {
                 let netValueOfOrder = order.price.times(order.quantity);
 
                 // subtract hive engine fees for swapping between hive and swap.hive (if applicable - defaultXPenalty will be 0 otherwise)
-                netValueOfOrder = netValueOfOrder.times(BigNumber(1).minus(currency === 'HIVE' ? defaultHivePenalty : defaultSwapHivePenalty))
+                netValueOfOrder = netValueOfOrder.times(BigNumber(1).minus(currency === 'HIVE' ? defaultEngineSwapPenalty : BigNumber(0)));
 
                 // subtract network deposit/withdrawal fee (it's provided as a % decimal i.e. 0.75 = 0.75%)
                 netValueOfOrder = netValueOfOrder.times(BigNumber(1).minus(BigNumber(coin.network_percentage_fee.div(BigNumber(100)))));
 
                 // subtract fixed fee todo: do this for the whole coin (adds a bunch of complexity)
-                netValueOfOrder = netValueOfOrder.minus(BigNumber(coin.network_flat_fee));
+                if (orderSide === "buy") {
+                    // fixed fee only applies if we're going from other currency -> hive
+                    netValueOfOrder = netValueOfOrder.minus(BigNumber(coin.network_flat_fee));
+                }
 
                 if (orderSide === "buy") {
                     // work out hive in equivalent of coin price and divide it by the amount of hive we will get out
@@ -178,11 +197,7 @@ export function App(): JSX.Element {
 
         // order by profit per hive
         orderOptions.sort((a, b) => {
-            if (orderSide === "buy") {
-                return b.profit_per_hive.minus(a.profit_per_hive).toNumber();
-            } else {
-                return a.profit_per_hive.minus(b.profit_per_hive).toNumber();
-            }
+            return b.profit_per_hive.minus(a.profit_per_hive).toNumber();
         });
 
         // print best routes until we run out of hive (group all orders by coin)
@@ -191,28 +206,38 @@ export function App(): JSX.Element {
         // best routes in order of profit
         let bestRoutesUngrouped: BestRoute[] = [];
 
-        while (hiveLeft.gt(0) && orderOptions.length > 0) {
+        while (hiveLeft.gt(0)) {
             // pop the best order
             let orderOption = orderOptions.shift();
 
-            if (orderOption.order.profit_per_coin.lte(0.001)) {
+            if (typeof orderOption === 'undefined' || orderOption.profit_per_hive.lte(feeAppliedToHiveDeposits)) {
                 // the rest is just hive
+
+                let hiveCoinData = processedCoinsData.find((coin) => coin.symbol === "HIVE");
+
+                let amountOut = currency === "SWAP.HIVE" ? hiveLeft.times(BigNumber(1).minus(defaultEngineSwapPenalty)) : hiveLeft;
 
                 // add to best routes
                 bestRoutesUngrouped.push({
-                    from: "HIVE",
-                    to: "HIVE",
-                    amountHive: hiveLeft,
-                    amountInHiveEquivalent: hiveLeft,
-                    amountOtherCoinIn: hiveLeft,
-                    outHiveEquivalent: hiveLeft,
-                    percentageProfit: BigNumber(0)
+                    from: {
+                        symbol: "HIVE",
+                        amount: hiveLeft,
+                        amountHive: hiveLeft,
+                        amountUSD: hiveCoinData?.usd.times(hiveLeft) ?? BigNumber(0),
+                    },
+                    to: {
+                        symbol: currency,
+                        amount: amountOut,
+                        amountHive: amountOut,
+                        amountUSD: hiveCoinData?.usd.times(amountOut) ?? BigNumber(0),
+                    },
+                    percentageProfit: amountOut.div(hiveLeft).minus(BigNumber(1)).times(BigNumber(100)),
                 });
 
                 break;
             }
 
-            if (orderOption.coin.network_flat_fee.gt(0) && hiveLeft.lt(orderOption.order.quantity.times(orderOption.order.price))) {
+            if (orderOption.coin_data.network_flat_fee.gt(0) && hiveLeft.lt(orderOption.quantity.times(orderOption.price))) {
                 // we would need to recalculate the flat fee based on the reduced quantity, and we don't want to compute that right now
                 continue;
             }
@@ -221,38 +246,65 @@ export function App(): JSX.Element {
             let toCoin = "";
 
             let hiveMultiplier = BigNumber(1);
+            let hiveToUSDMultiplier = coinsData.filter(coin => coin.symbol === "HIVE")[0].usd ?? BigNumber(1);
 
             if (orderSide === "buy") {
-                fromCoin = orderOption.coin.symbol;
-                toCoin = "HIVE";
+                fromCoin = orderOption.symbol;
+                toCoin = currency;
 
-                hiveMultiplier = coinsData.filter(coin => coin.symbol === fromCoin)[0].hive;
+                hiveMultiplier = coinsData.filter(coin => coin.swap_symbol === fromCoin)[0].hive ?? BigNumber(1);
             } else {
-                fromCoin = "HIVE";
-                toCoin = orderOption.coin.symbol;
+                fromCoin = currency;
+                toCoin = orderOption.symbol;
 
-                hiveMultiplier = coinsData.filter(coin => coin.symbol === toCoin)[0].hive;
+                hiveMultiplier = coinsData.filter(coin => coin.swap_symbol === toCoin)[0].hive ?? BigNumber(1);
             }
 
-            let amountOtherCoinIn = orderOption.order.quantity.times(orderOption.order.price);
+            let amountHiveInOrOut = orderOption.quantity.times(orderOption.price);
 
-            if (hiveLeft.lt(amountOtherCoinIn)) {
+            if (hiveLeft.lt(amountHiveInOrOut)) {
                 // we don't have enough hive to buy this much of the other coin
-                amountOtherCoinIn = hiveLeft.div(orderOption.order.price);
+                amountHiveInOrOut = hiveLeft;
             }
 
-            // add to best routes
-            bestRoutesUngrouped.push({
-                from: fromCoin,
-                to: toCoin,
-                amountOtherCoinIn: amountOtherCoinIn,
-                amountInHiveEquivalent: amountOtherCoinIn.times(hiveMultiplier),
-                outHiveEquivalent: amountOtherCoinIn.times(orderOption.order.price),
-                percentageProfit: orderOption.order.profit_per_coin,
-            });
+            let amountTokenInOrOut = amountHiveInOrOut.div(orderOption.price);
+
+            if (fromCoin === currency) {
+                bestRoutesUngrouped.push({
+                    from: {
+                        symbol: fromCoin,
+                        amount: amountHiveInOrOut,
+                        amountHive: amountHiveInOrOut,
+                        amountUSD: amountHiveInOrOut.times(hiveToUSDMultiplier),
+                    },
+                    to: {
+                        symbol: toCoin,
+                        amount: amountTokenInOrOut,
+                        amountHive: amountTokenInOrOut.times(hiveMultiplier),
+                        amountUSD: amountTokenInOrOut.times(orderOption.coin_data.usd),
+                    },
+                    percentageProfit: orderOption.profit_percentage
+                });
+            } else {
+                bestRoutesUngrouped.push({
+                    from: {
+                        symbol: fromCoin,
+                        amount: amountTokenInOrOut,
+                        amountHive: amountTokenInOrOut.times(hiveMultiplier),
+                        amountUSD: amountTokenInOrOut.times(orderOption.coin_data.usd),
+                    },
+                    to: {
+                        symbol: toCoin,
+                        amount: amountHiveInOrOut,
+                        amountHive: amountHiveInOrOut,
+                        amountUSD: amountHiveInOrOut.times(hiveToUSDMultiplier),
+                    },
+                    percentageProfit: orderOption.profit_percentage
+                });
+            }
 
             // subtract from hive left
-            hiveLeft = hiveLeft.minus(amountOtherCoinIn.times(orderOption.order.price));
+            hiveLeft = hiveLeft.minus(amountHiveInOrOut);
         }
 
         // group best routes by coin
@@ -266,11 +318,16 @@ export function App(): JSX.Element {
             for (let j = 0; j < bestRoutesGrouped.length; j++) {
                 const groupedRoute = bestRoutesGrouped[j];
 
-                if (groupedRoute.from === route.from && groupedRoute.to === route.to) {
-                    groupedRoute.amountOtherCoinIn = groupedRoute.amountOtherCoinIn.plus(route.amountOtherCoinIn);
-                    groupedRoute.outHiveEquivalent = groupedRoute.outHiveEquivalent.plus(route.outHiveEquivalent);
-                    console.log(groupedRoute.outHiveEquivalent.toString(), groupedRoute.amountInHiveEquivalent.toString());
-                    groupedRoute.percentageProfit = groupedRoute.outHiveEquivalent.div(groupedRoute.amountInHiveEquivalent).minus(1);
+                if (groupedRoute.from.symbol === route.from.symbol && groupedRoute.to.symbol === route.to.symbol) {
+                    groupedRoute.from.amount = groupedRoute.from.amount.plus(route.from.amount);
+                    groupedRoute.from.amountHive = groupedRoute.from.amountHive.plus(route.from.amountHive);
+                    groupedRoute.from.amountUSD = groupedRoute.from.amountUSD.plus(route.from.amountUSD);
+
+                    groupedRoute.to.amount = groupedRoute.to.amount.plus(route.to.amount);
+                    groupedRoute.to.amountHive = groupedRoute.to.amountHive.plus(route.to.amountHive);
+                    groupedRoute.to.amountUSD = groupedRoute.to.amountUSD.plus(route.to.amountUSD);
+
+                    groupedRoute.percentageProfit = groupedRoute.to.amountHive.div(groupedRoute.from.amountHive).minus(1).abs();
 
                     found = true;
                     break;
@@ -293,6 +350,22 @@ export function App(): JSX.Element {
         calculateBestRoute();
     }, []); // on page load
 
+
+    const onCurrencyChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        if (e.currentTarget.value === "HIVE" || e.currentTarget.value === "SWAP.HIVE") {
+            setCurrency(e.currentTarget.value);
+        }
+
+        return;
+    };
+
+    const onAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!isNaN(Number(e.currentTarget.value))) {
+            setDepositAmount(Number(e.currentTarget.value));
+        } else {
+            setDepositAmount(depositAmount);
+        }
+    }
 
     return (
         <div>
@@ -320,7 +393,7 @@ export function App(): JSX.Element {
                                     {coinsData && coinsData.sort(AtoZSort).map(coin => {
                                         return <div className="box has-background-grey-darker p-1 m-1"><p
                                             className="has-text-light">
-                                            <strong>{coin.symbol}</strong> ${SmartCurrencyFormat(coin.usd, true)} / {SmartCurrencyFormat(coin.hive, false)} HIVE <strong
+                                            <strong>{coin.symbol}</strong> ${SmartCurrencyFormat(coin.usd, "usd")} / {SmartCurrencyFormat(coin.hive, "hive")} HIVE <strong
                                             className={coin.usd_24h_change.gt(0) ? "has-text-success" : "has-text-danger"}>({coin.usd_24h_change.toFixed(2)}%)</strong>
                                         </p></div>
                                     })}
@@ -347,13 +420,12 @@ export function App(): JSX.Element {
                                             <button className={"button " + (orderSide === "sell" ? "is-danger" : "is-dark")} onClick={() => setOrderSide("sell")}>Sell</button>
                                         </div>
                                         <div className="control is-expanded">
-                                            <input className="input" type="text" placeholder="100" value={depositAmount} onChange={e => setDepositAmount(Number(e.currentTarget.value))} />
+                                            <input className="input" type="text" placeholder="100" value={depositAmount} onChange={onAmountChange} />
                                             <p className="help">The amount of {currency} you want to {orderSide}.</p>
                                         </div>
                                         <div className="control">
                                             <div className="select">
-                                                <select value={currency}
-                                                        onChange={e => setCurrency(e.currentTarget.value)}>
+                                                <select value={currency} onChange={onCurrencyChange}>
                                                     <option>HIVE</option>
                                                     <option>SWAP.HIVE</option>
                                                 </select>
@@ -380,11 +452,15 @@ export function App(): JSX.Element {
                                         {bestRoutes && bestRoutes.map(route => {
                                             return <div className="box has-background-grey-darker p-1 m-1"><p
                                                 className="has-text-light">
-                                                <strong>{route.from}</strong> to <strong>{route.to}</strong> for {SmartCurrencyFormat(route.amountOtherCoinIn, false)} {route.from} -&gt; HIVE ({SmartCurrencyFormat(route.outHiveEquivalent, false)} {route.to}) <strong
-                                                className="has-text-success">({route.percentageProfit.toFixed(2)}%)</strong>
+                                                {SmartCurrencyFormat(route.from.amount, route.from.symbol)} <strong> {route.from.symbol}</strong> <span style={{display: route.from.amountHive.isEqualTo(route.from.amount) ? "none" : "inline"}}>(~ {SmartCurrencyFormat(route.from.amountHive, "hive")} HIVE)</span> (~ {SmartCurrencyFormat(route.from.amountUSD, "usd")} USD) -&gt; {SmartCurrencyFormat(route.to.amount, route.to.symbol)} <strong> {route.to.symbol}</strong> <span style={{display: route.to.amountHive.isEqualTo(route.to.amount) ? "none" : "inline"}}>(~ {SmartCurrencyFormat(route.to.amountHive, "hive")} HIVE)</span> (~ {SmartCurrencyFormat(route.to.amountUSD, "usd")} USD) <strong
+                                                className={route.percentageProfit.lt(0) ? "has-text-danger" : "has-text-success"}>({route.percentageProfit.toFixed(2)}%)</strong>
                                             </p></div>
                                         })}
                                     </div>
+                                    <p class="has-text-light has-text-weight-bold">If you enjoy using this app, please consider voting <a href="https://hivel.ink/@cadawg" class="is-underlined">@cadawg</a> as a <a href="https://vote.hive.uno/@cadawg" class="is-underlined">Hive Witness</a> or <a href="https://votify.vercel.app/cadengine" class="is-underlined">Hive-Engine Witness</a></p>
+                                    <p class="has-text-light" style="font-size: 0.8em;">
+                                        Disclaimer: The app's suggested routes for cryptocurrency withdrawal and deposits are provided for informational purposes only and should not be considered financial advice. Users should be aware of potential risks such as faulty calculations, outdated market data, and the possibility of prices and orders changing before completing a deposit or withdrawal. The app does not guarantee accuracy or timeliness of information, and users are responsible for their own research and decision-making.
+                                    </p>
                                 </div>
                             </div>
                         </div>
