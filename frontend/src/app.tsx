@@ -405,6 +405,7 @@ export function App(): JSX.Element {
                                                                                 className="is-underlined">CoinGecko
                                         API</a>
                                     </p>
+                                    <p class="has-text-white">HBD -&gt; Hive Prices From the Internal Market</p>
                                 </div>
                             </div>
 
