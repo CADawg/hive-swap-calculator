@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"github.com/CADawg/hive-swap-calculator/frontend"
 	"net/http"
 	"os"
 	"os/signal"
@@ -95,6 +96,9 @@ func main() {
 				return
 			}
 		})
+
+		// static files at / apart from /prices
+		mux.Handle("/", http.FileServer(http.FS(frontend.RootDir)))
 
 		server := http.Server{
 			Addr:              ":8080",
