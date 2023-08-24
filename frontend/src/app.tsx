@@ -210,7 +210,7 @@ export function App(): JSX.Element {
             // pop the best order
             let orderOption = orderOptions.shift();
 
-            if (typeof orderOption === 'undefined' || orderOption.profit_per_hive.lte(feeAppliedToHiveDeposits)) {
+            if (typeof orderOption === 'undefined' || !orderOption.profit_per_hive.gte(feeAppliedToHiveDeposits.times(-1))) {
                 // the rest is just hive
 
                 let hiveCoinData = processedCoinsData.find((coin) => coin.symbol === "HIVE");
