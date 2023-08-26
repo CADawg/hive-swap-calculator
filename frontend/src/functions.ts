@@ -67,7 +67,7 @@ export function GetBestRoutesForGivenAmountOfToken(coinsWithOrders: ParsedCoinWi
 
         // we need a better algo now
         // as when the stack has say 2.6 at 1500 and then 2.5 at 3000 depth it will take both, but it can only choose to take one as the stacks are additive - meaning taking a lower stack makes a higher stack unavailable as part of the quantity has been used elsewhere
-        // so we need to work out the most profitable route
+        // , so we need to work out the most profitable route
 
 
         let currentOrderStack: ParsedOrderWithProfitData[] = [];
@@ -201,34 +201,37 @@ export function GetBestRoutesForGivenAmountOfToken(coinsWithOrders: ParsedCoinWi
                 break; // Stop if no more Hive left
             }
 
+            // Calculate the actual amount of HIVE used for this order
+            let actualHiveForOrder = BigNumber.minimum(individualOrder.quantity.times(individualOrder.price), hiveLeft);
+
             let from: RouteCurrency;
             let to: RouteCurrency;
 
             if (orderSide === "sell") {
                 from = {
-                    symbol: 'HIVE',
-                    amount: individualOrder.quantity,
-                    amountHive: individualOrder.quantity,
-                    amountUSD: individualOrder.quantity.times(hiveToUSDMultiplier),
+                    symbol: currency ?? "HIVE",
+                    amount: actualHiveForOrder,
+                    amountHive: actualHiveForOrder,
+                    amountUSD: actualHiveForOrder.times(hiveToUSDMultiplier),
                 };
                 to = {
                     symbol: coinSymbol,
-                    amount: individualOrder.quantity.dividedBy(individualOrder.profit_per_hive),
-                    amountHive: individualOrder.quantity,
-                    amountUSD: individualOrder.quantity.times(hiveToUSDMultiplier).dividedBy(individualOrder.profit_per_hive),
+                    amount: actualHiveForOrder.div(individualOrder.price),
+                    amountHive: actualHiveForOrder.div(individualOrder.price).times(orderOption.Coin.hive),
+                    amountUSD: actualHiveForOrder.div(individualOrder.price).times(orderOption.Coin.hive).times(hiveToUSDMultiplier),
                 };
             } else {  // "buy"
                 from = {
                     symbol: coinSymbol,
-                    amount: individualOrder.quantity.dividedBy(individualOrder.profit_per_hive),
-                    amountHive: individualOrder.quantity,
-                    amountUSD: individualOrder.quantity.times(hiveToUSDMultiplier).dividedBy(individualOrder.profit_per_hive),
+                    amount: actualHiveForOrder.div(individualOrder.price),
+                    amountHive: actualHiveForOrder.div(individualOrder.price).times(orderOption.Coin.hive),
+                    amountUSD: actualHiveForOrder.div(individualOrder.price).times(orderOption.Coin.hive).times(hiveToUSDMultiplier),
                 };
                 to = {
-                    symbol: 'HIVE',
-                    amount: individualOrder.quantity,
-                    amountHive: individualOrder.quantity,
-                    amountUSD: individualOrder.quantity.times(hiveToUSDMultiplier),
+                    symbol: currency ?? "HIVE",
+                    amount: actualHiveForOrder,
+                    amountHive: actualHiveForOrder,
+                    amountUSD: actualHiveForOrder.times(hiveToUSDMultiplier),
                 };
             }
 
@@ -239,52 +242,11 @@ export function GetBestRoutesForGivenAmountOfToken(coinsWithOrders: ParsedCoinWi
             });
 
             // Subtract from hive left
-            hiveLeft = hiveLeft.minus(individualOrder.quantity);
+            hiveLeft = hiveLeft.minus(actualHiveForOrder);
         }
     }
 
-    // group bestroutes by from symbol
-    let groupedBestRoutes: BestRoute[][] = [];
-
-    for (let i = 0; i < bestRoutes.length; i++) {
-        let route = bestRoutes[i];
-
-        let index = groupedBestRoutes.findIndex((group) => group[0].from.symbol === route.from.symbol);
-
-        if (index === -1) {
-            groupedBestRoutes.push([route]);
-        } else {
-            groupedBestRoutes[index].push(route);
-        }
-    }
-
-    // add and average
-    let averagedBestRoutes: BestRoute[] = [];
-
-    for (let i = 0; i < groupedBestRoutes.length; i++) {
-        let group = groupedBestRoutes[i];
-
-        let from = group[0].from;
-        let to = group[0].to;
-        let percentageProfit = BigNumber(0);
-
-        for (let j = 0; j < group.length; j++) {
-            let route = group[j];
-
-            percentageProfit = percentageProfit.plus(route.percentageProfit);
-        }
-
-        percentageProfit = percentageProfit.div(group.length);
-
-        averagedBestRoutes.push({
-            from,
-            to,
-            percentageProfit
-        });
-    }
-
-
-    return averagedBestRoutes;
+    return bestRoutes;
 }
 
 export function GetCoinsWithProcessedOrders(coinsData: ParsedCoinData[], orderSide: OrderSide, currency: Currency, defaultEngineSwapPenalty: BigNumber) : ParsedCoinWithOrderProfit[] {
