@@ -29,6 +29,7 @@ export type ParsedOrder = {
     _id: Number,
     profit_percentage: BigNumber,
     profit_per_hive?: BigNumber,
+    network_fixed_fee?: BigNumber,
 };
 
 export interface ParsedOrderWithProfitData extends ParsedOrder {

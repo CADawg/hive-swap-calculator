@@ -4,11 +4,12 @@ import GetCoinsData, {
     CoinData,
     ParsedCoinData,
     ParsedCoinDataArrayOrNull, ParsedCoinWithOrderProfit,
-    ParsedOrderWithCoinData, ParsedOrderWithProfitData
+    ParsedOrderWithCoinData
 } from "./coindata.ts";
 import BigNumber from "bignumber.js";
 import {JSX} from "preact";
 import * as React from "preact/compat";
+import {ConvertCoinDataWithOrderToOrderWithCoinData, GetCoinsWithProcessedOrders} from "./functions.ts";
 
 function AtoZSort(a: ParsedCoinData|CoinData, b: ParsedCoinData|CoinData): number {
     if (a.symbol < b.symbol) {
@@ -118,82 +119,11 @@ export function App(): JSX.Element {
 
         let hiveAmountOut = BigNumber(depositAmount);
 
-        let processedCoinsData : ParsedCoinWithOrderProfit[] = [];
+        // get orders with profit data as children of coins
+        let processedCoinsData: ParsedCoinWithOrderProfit[] = GetCoinsWithProcessedOrders(coinsData, orderSide, currency, feeAppliedToHiveDeposits);
 
-        // work out profit post deposit/withdrawal (minus each coin's deposit/withdrawal fee)
-        for (let i = 0; i < coinsData.length; i++) {
-            let coin = {...coinsData[i]} as ParsedCoinData;
-
-            let orders = orderSide === "buy" ? coin.buy_orders : coin.sell_orders;
-
-            let newOrders : ParsedOrderWithProfitData[] = [];
-
-            // we want to buy hive or swap.hive with usd/other crypto
-            for (let j = 0; j < orders.length; j++) {
-                let order = orders[j];
-
-                // get the total amount of hive we will put in or get out of this order
-                let netValueOfOrder = order.price.times(order.quantity);
-
-                // subtract hive engine fees for swapping between hive and swap.hive (if applicable - defaultXPenalty will be 0 otherwise)
-                netValueOfOrder = netValueOfOrder.times(BigNumber(1).minus(currency === 'HIVE' ? defaultEngineSwapPenalty : BigNumber(0)));
-
-                // subtract network deposit/withdrawal fee (it's provided as a % decimal i.e. 0.75 = 0.75%)
-                netValueOfOrder = netValueOfOrder.times(BigNumber(1).minus(BigNumber(coin.network_percentage_fee.div(BigNumber(100)))));
-
-                // subtract fixed fee todo: do this for the whole coin (adds a bunch of complexity)
-                if (orderSide === "sell") {
-                    // fixed fee only applies if we're going from hive -> other currency
-                    netValueOfOrder = netValueOfOrder.minus(BigNumber(coin.network_flat_fee));
-                }
-
-                if (orderSide === "buy") {
-                    // work out hive in equivalent of coin price and divide it by the amount of hive we will get out
-                    let hiveSwapRatio = netValueOfOrder.div(order.quantity.times(coin.hive));
-
-                    // calc profit
-                    order.profit_per_hive = hiveSwapRatio.minus(BigNumber(1));
-                    order.profit_percentage = order.profit_per_hive.times(BigNumber(100));
-                } else {
-                    // work out hive in equivalent of coin price and divide it by the amount of hive we will get out
-                    let hiveSwapRatio = netValueOfOrder.div(order.quantity.times(coin.hive));
-
-                    // calc profit
-                    order.profit_per_hive = hiveSwapRatio.minus(BigNumber(1));
-                    order.profit_percentage = order.profit_per_hive.times(BigNumber(100));
-                }
-
-                newOrders.push(order as ParsedOrderWithProfitData);
-            }
-
-            if (orderSide == "buy") {
-                coin.buy_orders = newOrders.filter((order) => order.profit_per_hive.gt(0));
-            } else {
-                coin.sell_orders = newOrders.filter((order) => order.profit_per_hive.gt(0));
-            }
-
-            processedCoinsData.push(coin as ParsedCoinWithOrderProfit);
-        }
-
-        // from here we should only use processedCoinsData and not coinsData
-
-        // orders we can take (array of order with coin data embedded)
-        let orderOptions: ParsedOrderWithCoinData[] = [];
-
-        // add all orders to orderOptions
-        for (let i = 0; i < processedCoinsData.length; i++) {
-            let coin = processedCoinsData[i];
-
-            let orders = orderSide === "buy" ? coin.buy_orders : coin.sell_orders;
-
-            for (let j = 0; j < orders.length; j++) {
-                let orderWithCoin = orders[j] as ParsedOrderWithCoinData;
-
-                orderWithCoin.coin_data = coin;
-
-                orderOptions.push(orderWithCoin as ParsedOrderWithCoinData)
-            }
-        }
+        // convert to order-centric array
+        let orderOptions: ParsedOrderWithCoinData[] = ConvertCoinDataWithOrderToOrderWithCoinData(processedCoinsData, orderSide);
 
         // order by profit per hive
         orderOptions.sort((a, b) => {
