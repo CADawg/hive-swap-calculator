@@ -120,7 +120,7 @@ export function App(): JSX.Element {
         let hiveAmountOut = BigNumber(depositAmount);
 
         // get orders with profit data as children of coins
-        let processedCoinsData: ParsedCoinWithOrderProfit[] = GetCoinsWithProcessedOrders(coinsData, orderSide, currency, feeAppliedToHiveDeposits);
+        let processedCoinsData: ParsedCoinWithOrderProfit[] = GetCoinsWithProcessedOrders(coinsData, orderSide, currency, defaultEngineSwapPenalty);
 
         // convert to order-centric array
         let orderOptions: ParsedOrderWithCoinData[] = ConvertCoinDataWithOrderToOrderWithCoinData(processedCoinsData, orderSide);

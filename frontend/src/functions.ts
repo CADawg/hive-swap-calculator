@@ -6,7 +6,17 @@ import {
 } from "./coindata.ts";
 import BigNumber from "bignumber.js";
 
-export function ConvertCoinDataWithOrderToOrderWithCoinData(processedCoinsData: ParsedCoinWithOrderProfit[], orderSide: "buy" | "sell") {
+export type Currency = "HIVE" | "SWAP.HIVE" | undefined;
+
+export type OrderSide = "buy" | "sell";
+
+// This function takes an amount of hive, gets the best routes for that amount of hive, and returns the best routes - if it is on the sell side it has to include the coin.network_fixed_fee in the calculation for the maximum purchasable amount
+// to see if it is still profitable
+export function GetBestRoutesForGivenAmountOfToken(orders: ParsedOrderWithCoinData[], orderSide: OrderSide, currency: Currency, amountCurrency: BigNumber) {
+
+}
+
+export function ConvertCoinDataWithOrderToOrderWithCoinData(processedCoinsData: ParsedCoinWithOrderProfit[], orderSide: OrderSide) {
     // orders we can take (array of order with coin data embedded)
     let orderOptions: ParsedOrderWithCoinData[] = [];
 
@@ -28,7 +38,7 @@ export function ConvertCoinDataWithOrderToOrderWithCoinData(processedCoinsData: 
     return orderOptions;
 }
 
-export function GetCoinsWithProcessedOrders(coinsData: ParsedCoinData[], orderSide: "buy" | "sell", currency: "HIVE" | "SWAP.HIVE" | undefined, defaultEngineSwapPenalty: BigNumber) : ParsedCoinWithOrderProfit[] {
+export function GetCoinsWithProcessedOrders(coinsData: ParsedCoinData[], orderSide: OrderSide, currency: Currency, defaultEngineSwapPenalty: BigNumber) : ParsedCoinWithOrderProfit[] {
     let processedCoinsData: ParsedCoinWithOrderProfit[] = [];
 
     // work out profit post deposit/withdrawal (minus each coin's deposit/withdrawal fee)
@@ -45,6 +55,8 @@ export function GetCoinsWithProcessedOrders(coinsData: ParsedCoinData[], orderSi
 
             // get the total amount of hive we will put in or get out of this order
             let netValueOfOrder = order.price.times(order.quantity);
+
+            console.log(currency)
 
             // subtract hive engine fees for swapping between hive and swap.hive (if applicable - defaultXPenalty will be 0 otherwise)
             netValueOfOrder = netValueOfOrder.times(BigNumber(1).minus(currency === 'HIVE' ? defaultEngineSwapPenalty : BigNumber(0)));
