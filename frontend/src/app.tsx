@@ -142,8 +142,8 @@ export function App(): JSX.Element {
                 netValueOfOrder = netValueOfOrder.times(BigNumber(1).minus(BigNumber(coin.network_percentage_fee.div(BigNumber(100)))));
 
                 // subtract fixed fee todo: do this for the whole coin (adds a bunch of complexity)
-                if (orderSide === "buy") {
-                    // fixed fee only applies if we're going from other currency -> hive
+                if (orderSide === "sell") {
+                    // fixed fee only applies if we're going from hive -> other currency
                     netValueOfOrder = netValueOfOrder.minus(BigNumber(coin.network_flat_fee));
                 }
 
