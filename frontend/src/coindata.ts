@@ -47,6 +47,17 @@ export interface ParsedCoinWithOrderProfit extends ParsedCoinData {
     sell_orders: ParsedOrderWithProfitData[]
 }
 
+export type Currency = "HIVE" | "SWAP.HIVE" | undefined;
+
+export type OrderSide = "buy" | "sell";
+
+export type OrderWithDepth = {
+    Coin: ParsedCoinData,
+    Orders: ParsedOrderWithProfitData[],
+    Depth: BigNumber,
+    Profit_Per_Hive: BigNumber
+}
+
 /**
  * CoinData is the data returned from the backend about various coins
  * */

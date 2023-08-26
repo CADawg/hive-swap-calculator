@@ -4,12 +4,14 @@ import GetCoinsData, {
     CoinData,
     ParsedCoinData,
     ParsedCoinDataArrayOrNull, ParsedCoinWithOrderProfit,
-    ParsedOrderWithCoinData
 } from "./coindata.ts";
 import BigNumber from "bignumber.js";
 import {JSX} from "preact";
 import * as React from "preact/compat";
-import {ConvertCoinDataWithOrderToOrderWithCoinData, GetCoinsWithProcessedOrders} from "./functions.ts";
+import {
+    GetBestRoutesForGivenAmountOfToken,
+    GetCoinsWithProcessedOrders
+} from "./functions.ts";
 
 function AtoZSort(a: ParsedCoinData|CoinData, b: ParsedCoinData|CoinData): number {
     if (a.symbol < b.symbol) {
@@ -111,7 +113,6 @@ export function App(): JSX.Element {
     const calculateBestRoute = () => {
         // work out default penalty (do we need to deposit/withdraw from engine)
         let defaultEngineSwapPenalty = BigNumber(depositCost).div(BigNumber(100))
-        let feeAppliedToHiveDeposits = currency === "SWAP.HIVE" ? defaultEngineSwapPenalty : BigNumber(0);
 
         if (coinsData === null || typeof coinsData === 'undefined' || coinsData.length === 0) {
             return;
@@ -122,154 +123,9 @@ export function App(): JSX.Element {
         // get orders with profit data as children of coins
         let processedCoinsData: ParsedCoinWithOrderProfit[] = GetCoinsWithProcessedOrders(coinsData, orderSide, currency, defaultEngineSwapPenalty);
 
-        // convert to order-centric array
-        let orderOptions: ParsedOrderWithCoinData[] = ConvertCoinDataWithOrderToOrderWithCoinData(processedCoinsData, orderSide);
+        let routes = GetBestRoutesForGivenAmountOfToken(processedCoinsData, orderSide, currency, hiveAmountOut, defaultEngineSwapPenalty);
 
-        // order by profit per hive
-        orderOptions.sort((a, b) => {
-            return b.profit_per_hive.minus(a.profit_per_hive).toNumber();
-        });
-
-        // print best routes until we run out of hive (group all orders by coin)
-        let hiveLeft = hiveAmountOut;
-
-        // best routes in order of profit
-        let bestRoutesUngrouped: BestRoute[] = [];
-
-        while (hiveLeft.gt(0)) {
-            // pop the best order
-            let orderOption = orderOptions.shift();
-
-            if (typeof orderOption === 'undefined' || !orderOption.profit_per_hive.gte(feeAppliedToHiveDeposits.times(-1))) {
-                // the rest is just hive
-
-                let hiveCoinData = processedCoinsData.find((coin) => coin.symbol === "HIVE");
-
-                let amountOut = currency === "SWAP.HIVE" ? hiveLeft.times(BigNumber(1).minus(defaultEngineSwapPenalty)) : hiveLeft;
-
-                // add to best routes
-                bestRoutesUngrouped.push({
-                    from: {
-                        symbol: "HIVE",
-                        amount: hiveLeft,
-                        amountHive: hiveLeft,
-                        amountUSD: hiveCoinData?.usd.times(hiveLeft) ?? BigNumber(0),
-                    },
-                    to: {
-                        symbol: currency,
-                        amount: amountOut,
-                        amountHive: amountOut,
-                        amountUSD: hiveCoinData?.usd.times(amountOut) ?? BigNumber(0),
-                    },
-                    percentageProfit: amountOut.div(hiveLeft).minus(BigNumber(1)).times(BigNumber(100)),
-                });
-
-                break;
-            }
-
-            if (orderOption.coin_data.network_flat_fee.gt(0) && hiveLeft.lt(orderOption.quantity.times(orderOption.price))) {
-                // we would need to recalculate the flat fee based on the reduced quantity, and we don't want to compute that right now
-                continue;
-            }
-
-            let fromCoin = "";
-            let toCoin = "";
-
-            let hiveMultiplier = BigNumber(1);
-            let hiveToUSDMultiplier = coinsData.filter(coin => coin.symbol === "HIVE")[0].usd ?? BigNumber(1);
-
-            if (orderSide === "buy") {
-                fromCoin = orderOption.symbol;
-                toCoin = currency;
-
-                hiveMultiplier = coinsData.filter(coin => coin.swap_symbol === fromCoin)[0].hive ?? BigNumber(1);
-            } else {
-                fromCoin = currency;
-                toCoin = orderOption.symbol;
-
-                hiveMultiplier = coinsData.filter(coin => coin.swap_symbol === toCoin)[0].hive ?? BigNumber(1);
-            }
-
-            let amountHiveInOrOut = orderOption.quantity.times(orderOption.price);
-
-            if (hiveLeft.lt(amountHiveInOrOut)) {
-                // we don't have enough hive to buy this much of the other coin
-                amountHiveInOrOut = hiveLeft;
-            }
-
-            let amountTokenInOrOut = amountHiveInOrOut.div(orderOption.price);
-
-            if (fromCoin === currency) {
-                bestRoutesUngrouped.push({
-                    from: {
-                        symbol: fromCoin,
-                        amount: amountHiveInOrOut,
-                        amountHive: amountHiveInOrOut,
-                        amountUSD: amountHiveInOrOut.times(hiveToUSDMultiplier),
-                    },
-                    to: {
-                        symbol: toCoin,
-                        amount: amountTokenInOrOut,
-                        amountHive: amountTokenInOrOut.times(hiveMultiplier),
-                        amountUSD: amountTokenInOrOut.times(orderOption.coin_data.usd),
-                    },
-                    percentageProfit: orderOption.profit_percentage
-                });
-            } else {
-                bestRoutesUngrouped.push({
-                    from: {
-                        symbol: fromCoin,
-                        amount: amountTokenInOrOut,
-                        amountHive: amountTokenInOrOut.times(hiveMultiplier),
-                        amountUSD: amountTokenInOrOut.times(orderOption.coin_data.usd),
-                    },
-                    to: {
-                        symbol: toCoin,
-                        amount: amountHiveInOrOut,
-                        amountHive: amountHiveInOrOut,
-                        amountUSD: amountHiveInOrOut.times(hiveToUSDMultiplier),
-                    },
-                    percentageProfit: orderOption.profit_percentage
-                });
-            }
-
-            // subtract from hive left
-            hiveLeft = hiveLeft.minus(amountHiveInOrOut);
-        }
-
-        // group best routes by coin
-        let bestRoutesGrouped = [];
-
-        for (let i = 0; i < bestRoutesUngrouped.length; i++) {
-            const route = bestRoutesUngrouped[i];
-
-            let found = false;
-
-            for (let j = 0; j < bestRoutesGrouped.length; j++) {
-                const groupedRoute = bestRoutesGrouped[j];
-
-                if (groupedRoute.from.symbol === route.from.symbol && groupedRoute.to.symbol === route.to.symbol) {
-                    groupedRoute.from.amount = groupedRoute.from.amount.plus(route.from.amount);
-                    groupedRoute.from.amountHive = groupedRoute.from.amountHive.plus(route.from.amountHive);
-                    groupedRoute.from.amountUSD = groupedRoute.from.amountUSD.plus(route.from.amountUSD);
-
-                    groupedRoute.to.amount = groupedRoute.to.amount.plus(route.to.amount);
-                    groupedRoute.to.amountHive = groupedRoute.to.amountHive.plus(route.to.amountHive);
-                    groupedRoute.to.amountUSD = groupedRoute.to.amountUSD.plus(route.to.amountUSD);
-
-                    groupedRoute.percentageProfit = groupedRoute.to.amountHive.div(groupedRoute.from.amountHive).minus(1).abs();
-
-                    found = true;
-                    break;
-                }
-            }
-
-            if (!found) {
-                bestRoutesGrouped.push(route);
-            }
-        }
-
-        setBestRoutes(bestRoutesGrouped);
+        setBestRoutes(routes);
     };
 
     useEffect(() => {
