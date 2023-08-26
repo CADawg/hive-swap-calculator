@@ -58,23 +58,10 @@ export function GetBestRoutesForGivenAmountOfToken(coinsWithOrders: ParsedCoinWi
     for (let c = 0; c < coinsWithOrders.length; c++) {
         let orders = orderSide === "buy" ? coinsWithOrders[c].sell_orders : coinsWithOrders[c].buy_orders;
 
-
-
-        // order by "profit per hive" descending
-        orders.sort((a, b) => {
-            return a.profit_per_hive.comparedTo(b.profit_per_hive);
-        });
-
-        // we need a better algo now
-        // as when the stack has say 2.6 at 1500 and then 2.5 at 3000 depth it will take both, but it can only choose to take one as the stacks are additive - meaning taking a lower stack makes a higher stack unavailable as part of the quantity has been used elsewhere
-        // , so we need to work out the most profitable route
-
-
         let currentOrderStack: ParsedOrderWithProfitData[] = [];
 
         for (let o = 0; o < orders.length; o++) {
             let order = orders[o];
-            let toBreak = false;
 
             if (order.profit_per_hive.gt(0)) {
                 // do other checks here
@@ -85,16 +72,10 @@ export function GetBestRoutesForGivenAmountOfToken(coinsWithOrders: ParsedCoinWi
                     totalVolumeExistingStack = totalVolumeExistingStack.plus(currentOrderStack[i].quantity.times(currentOrderStack[i].price));
                 }
 
-                if (totalVolumeExistingStack.plus(order.quantity.times(order.price)).lte(currentAmountCurrency)) {
-                    // we can do the whole amount
-                    maxCurrentCurrency = currentAmountCurrency;
-                } else {
-                    if (totalVolumeExistingStack.plus(order.quantity.times(order.price)).minus(currentAmountCurrency).lt(BigNumber(10))) {
-                        break // not worth doing
-                    }
+                maxCurrentCurrency = BigNumber.minimum(currentAmountCurrency, order.quantity.times(order.price).minus(totalVolumeExistingStack));
 
-                    maxCurrentCurrency = currentAmountCurrency.minus(totalVolumeExistingStack);
-                    toBreak = true;
+                if (maxCurrentCurrency.isEqualTo(0)) {
+                    break;
                 }
 
                 currentOrderStack.push(order);
@@ -139,17 +120,10 @@ export function GetBestRoutesForGivenAmountOfToken(coinsWithOrders: ParsedCoinWi
                 orderByDepth.Profit_Per_Hive = profitPerHive;
 
                 ordersByCoinsAndDepth.push(orderByDepth);
-
-                if (toBreak) {
-                    break;
-                }
             } else {
                 break;
             }
         }
-    }
-    if (ordersByCoinsAndDepth.length > 0) {
-        console.log(ordersByCoinsAndDepth);
     }
 
     // get hive coin
@@ -167,14 +141,14 @@ export function GetBestRoutesForGivenAmountOfToken(coinsWithOrders: ParsedCoinWi
             account: "",
             expiration: Number(new BigNumber(Date.now()).plus(1000000).div(1000).toFixed(0)),
             price: BigNumber(1),
-            quantity: BigNumber("10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+            quantity: BigNumber("1000000000000000000000000000"),
             profit_per_hive: currency === 'SWAP.HIVE' ? defaultEngineSwapPenalty.times(-1) : BigNumber(0),
             profit_percentage: currency === 'SWAP.HIVE' ? defaultEngineSwapPenalty.times(-1) : BigNumber(0),
             timestamp: Number(new BigNumber(Date.now()).div(1000).toFixed(0)),
             txId: "",
-            _id: 0
+            _id: 0,
         }],
-        Depth: BigNumber("10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+        Depth: BigNumber("1000000000000000000000000000"),
         Profit_Per_Hive: currency === 'SWAP.HIVE' ? defaultEngineSwapPenalty.times(-1) : BigNumber(0)
     });
 
@@ -204,6 +178,8 @@ export function GetBestRoutesForGivenAmountOfToken(coinsWithOrders: ParsedCoinWi
             // Calculate the actual amount of HIVE used for this order
             let actualHiveForOrder = BigNumber.minimum(individualOrder.quantity.times(individualOrder.price), hiveLeft);
 
+            let newOrderQuantity = actualHiveForOrder.div(individualOrder.price);
+
             let from: RouteCurrency;
             let to: RouteCurrency;
 
@@ -216,16 +192,16 @@ export function GetBestRoutesForGivenAmountOfToken(coinsWithOrders: ParsedCoinWi
                 };
                 to = {
                     symbol: coinSymbol,
-                    amount: actualHiveForOrder.div(individualOrder.price),
-                    amountHive: actualHiveForOrder.div(individualOrder.price).times(orderOption.Coin.hive),
-                    amountUSD: actualHiveForOrder.div(individualOrder.price).times(orderOption.Coin.hive).times(hiveToUSDMultiplier),
+                    amount: newOrderQuantity,
+                    amountHive: newOrderQuantity.times(orderOption.Coin.hive),
+                    amountUSD: newOrderQuantity.times(orderOption.Coin.usd),
                 };
             } else {  // "buy"
                 from = {
                     symbol: coinSymbol,
-                    amount: actualHiveForOrder.div(individualOrder.price),
-                    amountHive: actualHiveForOrder.div(individualOrder.price).times(orderOption.Coin.hive),
-                    amountUSD: actualHiveForOrder.div(individualOrder.price).times(orderOption.Coin.hive).times(hiveToUSDMultiplier),
+                    amount: newOrderQuantity,
+                    amountHive: newOrderQuantity.times(orderOption.Coin.hive),
+                    amountUSD: newOrderQuantity.times(orderOption.Coin.usd),
                 };
                 to = {
                     symbol: currency ?? "HIVE",
@@ -248,10 +224,7 @@ export function GetBestRoutesForGivenAmountOfToken(coinsWithOrders: ParsedCoinWi
 
     // if not showing the individual orders, group them together for the same currency
     if (!showIndividualOrders) {
-
-    }
-
-let groupedRoutes: BestRoute[] = [];
+        let groupedRoutes: BestRoute[] = [];
 
         for (let i = 0; i < bestRoutes.length; i++) {
             let route = bestRoutes[i];
@@ -279,8 +252,9 @@ let groupedRoutes: BestRoute[] = [];
         }
 
         bestRoutes = groupedRoutes;
+    }
 
-        return bestRoutes;
+    return bestRoutes;
 }
 
 export function GetCoinsWithProcessedOrders(coinsData: ParsedCoinData[], orderSide: OrderSide, currency: Currency, defaultEngineSwapPenalty: BigNumber) : ParsedCoinWithOrderProfit[] {
@@ -290,7 +264,7 @@ export function GetCoinsWithProcessedOrders(coinsData: ParsedCoinData[], orderSi
     for (let i = 0; i < coinsData.length; i++) {
         let coin = {...coinsData[i]} as ParsedCoinData;
 
-        let orders = orderSide === "buy" ? coin.sell_orders : coin.buy_orders;
+        let orders = orderSide === "sell" ? coin.sell_orders : coin.buy_orders;
 
         let newOrders : ParsedOrderWithProfitData[] = [];
 
@@ -307,16 +281,7 @@ export function GetCoinsWithProcessedOrders(coinsData: ParsedCoinData[], orderSi
             // subtract network deposit/withdrawal fee (it's provided as a % decimal i.e. 0.75 = 0.75%)
             netValueOfOrder = netValueOfOrder.times(BigNumber(1).minus(BigNumber(coin.network_percentage_fee.div(BigNumber(100)))));
 
-            // we can get this from the coin data when we embed the coin data in  orders in the next step
-            // add fixed fee data to be used later
-            //if (orderSide === "sell") {
-            //    // fixed fee only applies if we're going from hive -> other currency
-            //    order.network_fixed_fee = coin.network_flat_fee;
-            //} else {
-            //    order.network_fixed_fee = BigNumber(0);
-            //}
-
-            if (orderSide === "buy") {
+            if (orderSide === "sell") {
                 // work out hive in equivalent of coin price and divide it by the amount of hive we will get out
                 let hiveSwapRatio = netValueOfOrder.div(order.quantity.times(coin.hive));
 
