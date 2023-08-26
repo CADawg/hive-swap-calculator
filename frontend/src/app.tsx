@@ -92,6 +92,7 @@ export function App(): JSX.Element {
     let [coinsData, setCoinsData] = useState<ParsedCoinDataArrayOrNull>(null);
     let [orderSide, setOrderSide] = useState<"buy"|"sell">('buy');
     let [bestRoutes, setBestRoutes] = useState<BestRoute[]>([]);
+    let [showIndividualOrders, setShowIndividualOrders] = useState<boolean>(false);
 
     useEffect(() => {
         const updateCoinsData = async () => setCoinsData(await GetCoinsData());
@@ -123,7 +124,7 @@ export function App(): JSX.Element {
         // get orders with profit data as children of coins
         let processedCoinsData: ParsedCoinWithOrderProfit[] = GetCoinsWithProcessedOrders(coinsData, orderSide, currency, defaultEngineSwapPenalty);
 
-        let routes = GetBestRoutesForGivenAmountOfToken(processedCoinsData, orderSide, currency, hiveAmountOut, defaultEngineSwapPenalty);
+        let routes = GetBestRoutesForGivenAmountOfToken(processedCoinsData, orderSide, currency, hiveAmountOut, defaultEngineSwapPenalty, showIndividualOrders);
 
         setBestRoutes(routes);
     };
@@ -235,6 +236,15 @@ export function App(): JSX.Element {
                                     {/* coloured box for best route information */}
                                     <div className="box is-dark has-background-info-dark">
                                         <h2 className="title has-text-success-light">Best Route</h2>
+                                        {/* checkbox whether to show individual orders or group orders of the same currency */}
+                                        <div className="field">
+                                            <div className="control">
+                                                <label className="checkbox">
+                                                    <input type="checkbox" onChange={e => setShowIndividualOrders(e.currentTarget.checked)} checked={showIndividualOrders} />
+                                                    Show individual orders
+                                                </label>
+                                            </div>
+                                        </div>
                                         {/* display the best routes */}
                                         {bestRoutes && bestRoutes.map(route => {
                                             return <div className="box has-background-grey-darker p-1 m-1"><p

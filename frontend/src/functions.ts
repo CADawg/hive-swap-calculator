@@ -47,7 +47,7 @@ const calcBestOrders = (
 
 // This function takes an amount of hive, gets the best routes for that amount of hive, and returns the best routes - if it is on the sell side it has to include the coin.network_fixed_fee in the calculation for the maximum purchasable amount
 // to see if it is still profitable
-export function GetBestRoutesForGivenAmountOfToken(coinsWithOrders: ParsedCoinWithOrderProfit[], orderSide: OrderSide, currency: Currency, amountCurrency: BigNumber, defaultEngineSwapPenalty: BigNumber): BestRoute[] {
+export function GetBestRoutesForGivenAmountOfToken(coinsWithOrders: ParsedCoinWithOrderProfit[], orderSide: OrderSide, currency: Currency, amountCurrency: BigNumber, defaultEngineSwapPenalty: BigNumber, showIndividualOrders: Boolean): BestRoute[] {
     let currentAmountCurrency = amountCurrency;
     let bestRoutes: BestRoute[] = [];
 
@@ -246,7 +246,41 @@ export function GetBestRoutesForGivenAmountOfToken(coinsWithOrders: ParsedCoinWi
         }
     }
 
-    return bestRoutes;
+    // if not showing the individual orders, group them together for the same currency
+    if (!showIndividualOrders) {
+
+    }
+
+let groupedRoutes: BestRoute[] = [];
+
+        for (let i = 0; i < bestRoutes.length; i++) {
+            let route = bestRoutes[i];
+            let index = groupedRoutes.findIndex((r) => r.from.symbol === route.from.symbol && r.to.symbol === route.to.symbol);
+
+            if (index === -1) {
+                groupedRoutes.push(route);
+            } else {
+                groupedRoutes[index] = {
+                    from: {
+                        symbol: route.from.symbol,
+                        amount: route.from.amount.plus(groupedRoutes[index].from.amount),
+                        amountHive: route.from.amountHive.plus(groupedRoutes[index].from.amountHive),
+                        amountUSD: route.from.amountUSD.plus(groupedRoutes[index].from.amountUSD),
+                    },
+                    to: {
+                        symbol: route.to.symbol,
+                        amount: route.to.amount.plus(groupedRoutes[index].to.amount),
+                        amountHive: route.to.amountHive.plus(groupedRoutes[index].to.amountHive),
+                        amountUSD: route.to.amountUSD.plus(groupedRoutes[index].to.amountUSD),
+                    },
+                    percentageProfit: route.percentageProfit,
+                };
+            }
+        }
+
+        bestRoutes = groupedRoutes;
+
+        return bestRoutes;
 }
 
 export function GetCoinsWithProcessedOrders(coinsData: ParsedCoinData[], orderSide: OrderSide, currency: Currency, defaultEngineSwapPenalty: BigNumber) : ParsedCoinWithOrderProfit[] {
