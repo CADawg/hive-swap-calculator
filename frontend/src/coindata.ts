@@ -36,11 +36,6 @@ export interface ParsedOrderWithProfitData extends ParsedOrder {
     profit_per_hive: BigNumber
 }
 
-export interface ParsedOrderWithCoinData extends ParsedOrder {
-    profit_per_hive: BigNumber, // not optional
-    coin_data: ParsedCoinData
-}
-
 export interface ParsedCoinWithOrderProfit extends ParsedCoinData {
     coin_data: ParsedCoinData,
     buy_orders: ParsedOrderWithProfitData[],
