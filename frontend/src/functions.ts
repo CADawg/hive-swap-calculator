@@ -140,7 +140,7 @@ export function GetBestRoutesForGivenAmountOfToken(coinsWithOrders: ParsedCoinWi
             symbol: currency ?? "HIVE",
             account: "",
             expiration: Number(new BigNumber(Date.now()).plus(1000000).div(1000).toFixed(0)),
-            price: BigNumber(1),
+            price: BigNumber(1).minus(currency === 'SWAP.HIVE' ? defaultEngineSwapPenalty : BigNumber(0)),
             quantity: BigNumber("1000000000000000000000000000"),
             profit_per_hive: currency === 'SWAP.HIVE' ? defaultEngineSwapPenalty.times(-1) : BigNumber(0),
             profit_percentage: currency === 'SWAP.HIVE' ? defaultEngineSwapPenalty.times(-1) : BigNumber(0),
