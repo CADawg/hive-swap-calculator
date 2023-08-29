@@ -99,7 +99,7 @@ export type ParsedCoinDataArrayOrNull = ParsedCoinData[] | null;
  * GetCoinsData fetches the data from the backend and returns it
  */
 export default async function GetCoinsData(): Promise<ParsedCoinDataArrayOrNull> {
-    const response = await fetch('http://localhost:8080/prices');
+    const response = await fetch('http://localhost:6241/prices');
     let data = await response.json() as CoinDataArrayOrNull;
 
     if (data === null) return null;

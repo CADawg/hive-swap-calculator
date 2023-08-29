@@ -101,7 +101,7 @@ func main() {
 		mux.Handle("/", http.FileServer(http.FS(frontend.RootDir)))
 
 		server := http.Server{
-			Addr:              ":8080",
+			Addr:              ":6241",
 			ReadHeaderTimeout: 5 * time.Second, // no slowloris pls
 			ReadTimeout:       5 * time.Second,
 			Handler:           mux,
